@@ -30,3 +30,7 @@ Route::prefix('auth')->middleware('auth:api')->group(function () {
 // ─── Contact form notification (public, throttled) ───────────────────────────
 Route::post('/notify/contact', [NotificationController::class, 'sendContactNotification'])
     ->middleware('throttle:10,1');
+
+Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
+    ->middleware('throttle:10,1');
+

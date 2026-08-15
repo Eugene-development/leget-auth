@@ -7,6 +7,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use App\Services\SmartCaptchaService;
 use Exception;
 
 class NotificationController extends Controller
@@ -14,7 +15,7 @@ class NotificationController extends Controller
     /**
      * Send contact form notification email
      */
-    public function sendContactNotification(Request $request)
+    public function sendContactNotification(Request $request, SmartCaptchaService $captcha)
     {
         try {
             Log::info('LEGET: Contact form notification received', [
@@ -22,13 +23,23 @@ class NotificationController extends Controller
                 'email' => $request->input('email'),
             ]);
 
+            // Антибот-проверка: серверная верификация токена SmartCaptcha.
+            if (!$captcha->verify($request->input('captcha_token'), $captcha->clientIp($request))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Не пройдена проверка безопасности.',
+                    'errors'  => ['captcha_token' => ['Подтвердите, что вы не робот.']],
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
             $request->validate([
-                'name'       => 'required|string|max:255',
-                'email'      => 'required|email|max:255',
-                'phone'      => 'nullable|string|max:50',
-                'company'    => 'nullable|string|max:255',
-                'message'    => 'required|string|max:5000',
-                'source_url' => 'nullable|string|max:500',
+                'name'          => 'required|string|max:255',
+                'email'         => 'required|email|max:255',
+                'phone'         => 'nullable|string|max:50',
+                'company'       => 'nullable|string|max:255',
+                'message'       => 'required|string|max:5000',
+                'source_url'    => 'nullable|string|max:500',
+                'captcha_token' => 'nullable|string',
             ]);
 
             // Resolve recipient email based on domain/license owner

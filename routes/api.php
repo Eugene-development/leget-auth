@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
@@ -11,10 +12,12 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ─── Public auth routes ───────────────────────────────────────────────────────
+Route::post('/admin/login', [AdminAuthController::class, 'login'])->middleware('throttle:5,1');
+
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login',    [AuthController::class, 'login']);
-    Route::post('/logout',   [AuthController::class, 'logout']);
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     // Email verification (no auth required — link from email)
     Route::get('/email-verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
@@ -23,7 +26,7 @@ Route::prefix('auth')->group(function () {
 
 // ─── Protected auth routes (require valid JWT) ────────────────────────────────
 Route::prefix('auth')->middleware('auth:api')->group(function () {
-    Route::get('/me',                [AuthController::class, 'me']);
+    Route::get('/me', [AuthController::class, 'me']);
     Route::post('/email-verify/resend', [AuthController::class, 'resendVerification']);
 });
 
@@ -33,4 +36,3 @@ Route::post('/notify/contact', [NotificationController::class, 'sendContactNotif
 
 Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
     ->middleware('throttle:10,1');
-

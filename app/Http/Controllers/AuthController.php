@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\SmartCaptchaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
@@ -19,7 +20,7 @@ class AuthController extends Controller
     /**
      * Register a new user and send email verification.
      */
-    public function register(Request $request)
+    public function register(Request $request, SmartCaptchaService $captcha)
     {
         try {
             Log::info('LEGET: Registration attempt', [
@@ -27,11 +28,22 @@ class AuthController extends Controller
                 'email' => $request->input('email'),
             ]);
 
+            // Антибот-проверка №1: серверная верификация токена SmartCaptcha.
+            // До неё запрос не проходит валидацию и не доходит до создания пользователя.
+            if (!$captcha->verify($request->input('captcha_token'), $captcha->clientIp($request))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Не пройдена проверка безопасности.',
+                    'errors'  => ['captcha_token' => ['Подтвердите, что вы не робот.']],
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
             $request->validate([
                 'name'                  => 'required|string|max:255',
                 'email'                 => 'required|string|email|max:255|unique:users',
                 'password'              => 'required|string|min:8|confirmed',
                 'phone'                 => 'nullable|string|max:30',
+                'captcha_token'         => 'nullable|string',
             ]);
 
             $user = User::create([
@@ -97,14 +109,24 @@ class AuthController extends Controller
     /**
      * Login user and return JWT token.
      */
-    public function login(Request $request)
+    public function login(Request $request, SmartCaptchaService $captcha)
     {
         try {
             Log::info('LEGET: Login attempt', ['email' => $request->input('email')]);
 
+            // Антибот-проверка: серверная верификация токена SmartCaptcha (защита от перебора).
+            if (!$captcha->verify($request->input('captcha_token'), $captcha->clientIp($request))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Не пройдена проверка безопасности.',
+                    'errors'  => ['captcha_token' => ['Подтвердите, что вы не робот.']],
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
             $request->validate([
-                'email'    => 'required|email',
-                'password' => 'required|string',
+                'email'         => 'required|email',
+                'password'      => 'required|string',
+                'captcha_token' => 'nullable|string',
             ]);
 
             $credentials = $request->only('email', 'password');

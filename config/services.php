@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Yandex SmartCaptcha
+    |--------------------------------------------------------------------------
+    |
+    | Серверная верификация токена капчи (защита публичных форм от ботов).
+    | secret — закрытый ключ (ysc2_...), без него проверка отключена (fail-open).
+    |
+    */
+    'smartcaptcha' => [
+        'server_url' => env('SMARTCAPTCHA_SERVER_URL', 'https://smartcaptcha.yandexcloud.net/validate'),
+        'secret' => env('SMARTCAPTCHA_SECRET'),
+    ],
+
 ];

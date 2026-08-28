@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Role;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -19,13 +20,31 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
     use HasFactory, Notifiable;
 
     /**
+     * Значения по умолчанию.
+     *
+     * Роль дублирует default колонки, чтобы у только что созданной модели она
+     * была и до `fresh()`: клиента создаёт ClientAuthController, роль он не
+     * передаёт (она не fillable), и без этого `$user->role` был бы null сразу
+     * после register — ровно там, где формируется ответ с полем `role`.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'role' => 'client',
+    ];
+
+    /**
      * The attributes that are mass assignable.
+     *
+     * `role` здесь быть не должно: массовое присваивание роли из тела запроса
+     * означало бы «зарегистрируйся администратором».
      */
     protected $fillable = [
         'name',
         'email',
         'password',
         'phone',
+        'region',
     ];
 
     /**
@@ -51,7 +70,21 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            // Каст в enum: неизвестное значение в колонке роняет гидрацию
+            // ValueError'ом, а не тихо превращается в «роль, которой нет».
+            'role'              => Role::class,
         ];
+    }
+
+    /**
+     * Заявка на партнёрство, она же профиль партнёра.
+     *
+     * Существует и у клиента: заявка подаётся до одобрения, и роль в этот
+     * момент ещё `client`. Наличие профиля — не право на Офис, право даёт роль.
+     */
+    public function partnerProfile(): HasOne
+    {
+        return $this->hasOne(PartnerProfile::class);
     }
 
     /**
@@ -87,6 +120,11 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
             'email'          => $this->email,
             'name'           => $this->name,
             'email_verified' => $this->email_verified,
+            // Claim — снимок на момент выдачи: после смены роли он врёт до
+            // истечения TTL. Поэтому им можно рисовать шапку в SSR без запроса
+            // к auth-сервису, но нельзя решать вопрос доступа — это делает
+            // проверка роли в БД (`can:` и /api/session/me).
+            'role'           => ($this->role ?? Role::Client)->value,
         ];
     }
 }

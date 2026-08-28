@@ -131,6 +131,9 @@ class NotificationController extends Controller
                 'assembly'          => 'Сборка и монтаж',
                 'measurement'       => 'Замер помещения',
                 'partnership'       => 'Сотрудничество',
+                'promo'             => 'Промокод',
+                'vacancy'           => 'Отклик на вакансию',
+                'careers'           => 'Отклик на вакансию',
             ];
 
             $serviceType = $request->input('service_type');

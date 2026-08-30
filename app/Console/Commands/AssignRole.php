@@ -22,10 +22,10 @@ final class AssignRole extends Command
 {
     protected $signature = 'roles:assign
         {email : Email пользователя}
-        {role : Роль (superadmin, client, partner)}
+        {role : Роль (superadmin, client, partner, curator)}
         {--force : Снять роль superadmin с последнего суперадминистратора}';
 
-    protected $description = 'Назначить пользователю роль (superadmin, client, partner)';
+    protected $description = 'Назначить пользователю роль (superadmin, client, partner, curator)';
 
     public function handle(): int
     {

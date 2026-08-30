@@ -26,6 +26,23 @@ class RoleCommandTest extends TestCase
         ]);
     }
 
+    /**
+     * Куратор — сотрудник платформы, и роль ему назначают той же командой,
+     * что и партнёру. Форма регистрации её не выдаёт.
+     */
+    public function test_curator_role_is_assignable(): void
+    {
+        $this->user('kate@example.test');
+
+        $this->artisan('roles:assign', ['email' => 'kate@example.test', 'role' => 'curator'])
+            ->assertSuccessful();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'kate@example.test',
+            'role' => Role::Curator->value,
+        ]);
+    }
+
     public function test_unknown_role_is_rejected(): void
     {
         $this->user('ivan@example.test');

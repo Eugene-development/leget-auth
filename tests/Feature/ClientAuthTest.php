@@ -109,6 +109,14 @@ class ClientAuthTest extends TestCase
         $this->assertTrue(Gate::forUser($this->user('client@example.test'))->allows('cabinet.view'));
         $this->assertFalse(Gate::forUser($this->user('admin@example.test', Role::Superadmin))->allows('cabinet.view'));
         $this->assertFalse(Gate::forUser($this->user('partner@example.test', Role::Partner))->allows('cabinet.view'));
+        $this->assertFalse(Gate::forUser($this->user('curator@example.test', Role::Curator))->allows('cabinet.view'));
+
+        // Куратор получает вознаграждение за закрытые сделки и потому не может
+        // подтвердить сделку, которую сам же и заявил. Держится картой прав,
+        // а не проверкой внутри сервиса, которую можно забыть повторить.
+        $this->assertTrue(Gate::forUser($this->user('c2@example.test', Role::Curator))->allows('promo.curate'));
+        $this->assertFalse(Gate::forUser($this->user('c3@example.test', Role::Curator))->allows('promo.confirm'));
+        $this->assertTrue(Gate::forUser($this->user('a2@example.test', Role::Superadmin))->allows('promo.confirm'));
     }
 
     public function test_region_is_optional(): void

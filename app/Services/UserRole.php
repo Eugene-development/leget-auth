@@ -8,7 +8,7 @@ use App\Enums\Role;
 use App\Models\User;
 
 /**
- * Роль пользователя платформы: «Админ», «Клиент», «Партнёр».
+ * Роль пользователя платформы: «Суперадмин», «Клиент», «Партнёр», «Куратор».
  *
  * Роль хранится в колонке `users.role`; словарь и права — в `App\Enums\Role`.
  * Раньше роль выводилась из allowlist `LEGET_ADMIN_EMAILS`, и это не давало
@@ -30,6 +30,8 @@ final class UserRole
     public const CLIENT = Role::Client->value;
 
     public const PARTNER = Role::Partner->value;
+
+    public const CURATOR = Role::Curator->value;
 
     public function of(?User $user): string
     {

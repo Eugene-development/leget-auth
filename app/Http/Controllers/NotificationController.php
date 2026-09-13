@@ -114,10 +114,16 @@ class NotificationController extends Controller
                 'service_type' => $request->input('service_type'),
             ]);
 
+            $isPartnership = $request->input('service_type') === 'partnership';
+            $isSupplier = $isPartnership && $request->input('partnership_status') === 'supplier';
+
             $request->validate([
                 'service_type' => 'required|string|max:50',
                 'name'         => 'required|string|max:255',
-                'phone'        => 'required|string|max:50',
+                'phone'        => $isSupplier ? 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/' : ($isPartnership ? 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/' : 'required|string|max:50'),
+                'email'        => $isSupplier ? 'nullable|required_without:phone|email|max:255' : 'nullable|email|max:255',
+                'company'      => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
+                'partnership_status' => 'nullable|in:referral,supplier',
                 'message'      => 'nullable|string|max:2000',
                 'source_url'   => 'nullable|string|max:500',
                 'city'         => 'nullable|string|max:100',
@@ -146,6 +152,9 @@ class NotificationController extends Controller
             $emailData = [
                 'client_name'        => $request->name,
                 'phone'              => $request->phone,
+                'client_email'       => $isSupplier ? $request->email : null,
+                'company'            => $isSupplier ? $request->company : null,
+                'partnership_status' => $isPartnership ? ($isSupplier ? 'Вы фабрика или поставщик' : 'Вы приводите клиентов') : null,
                 'service_type_label' => $serviceLabel,
                 'client_message'     => $request->message,
                 'source_url'         => $request->source_url,
@@ -165,6 +174,11 @@ class NotificationController extends Controller
                     'service_type' => $serviceType,
                 ]);
             } catch (Exception $mailException) {
+                // Заявка на партнёрство не сохраняется в CRM: при сбое почты
+                // возвращаем ошибку, чтобы посетитель мог повторить отправку.
+                if ($isPartnership) {
+                    throw $mailException;
+                }
                 Log::warning('LEGET: Service request notification email sending failed, but request logged', [
                     'to'           => $adminEmail,
                     'service_type' => $serviceType,

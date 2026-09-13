@@ -130,9 +130,20 @@
                 <div class="info-row">
                     <span class="info-label">Телефон:</span>
                     <span class="info-value">
+                        @if($phone)
                         <a href="tel:{{ $phone }}" style="color: #2563eb; text-decoration: none; font-weight: 600;">{{ $phone }}</a>
+                        @else Не указан @endif
                     </span>
                 </div>
+                @if(!empty($client_email))
+                <div class="info-row"><span class="info-label">Почта:</span><span class="info-value">{{ $client_email }}</span></div>
+                @endif
+                @if(!empty($company))
+                <div class="info-row"><span class="info-label">Компания:</span><span class="info-value">{{ $company }}</span></div>
+                @endif
+                @if(!empty($partnership_status))
+                <div class="info-row"><span class="info-label">Статус:</span><span class="info-value">{{ $partnership_status }}</span></div>
+                @endif
                 <div class="info-row">
                     <span class="info-label">Тип услуги:</span>
                     <span class="info-value" style="font-weight: 600;">{{ $service_type_label }}</span>

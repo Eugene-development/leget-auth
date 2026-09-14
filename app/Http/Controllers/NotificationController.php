@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\SmartCaptchaService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use App\Services\SmartCaptchaService;
-use Exception;
 
 class NotificationController extends Controller
 {
@@ -19,26 +20,26 @@ class NotificationController extends Controller
     {
         try {
             Log::info('LEGET: Contact form notification received', [
-                'name'  => $request->input('name'),
+                'name' => $request->input('name'),
                 'email' => $request->input('email'),
             ]);
 
             // Антибот-проверка: серверная верификация токена SmartCaptcha.
-            if (!$captcha->verify($request->input('captcha_token'), $captcha->clientIp($request))) {
+            if (! $captcha->verify($request->input('captcha_token'), $captcha->clientIp($request))) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Не пройдена проверка безопасности.',
-                    'errors'  => ['captcha_token' => ['Подтвердите, что вы не робот.']],
+                    'errors' => ['captcha_token' => ['Подтвердите, что вы не робот.']],
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             $request->validate([
-                'name'          => 'required|string|max:255',
-                'email'         => 'required|email|max:255',
-                'phone'         => 'nullable|string|max:50',
-                'company'       => 'nullable|string|max:255',
-                'message'       => 'required|string|max:5000',
-                'source_url'    => 'nullable|string|max:500',
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'phone' => 'nullable|string|max:50',
+                'company' => 'nullable|string|max:255',
+                'message' => 'required|string|max:5000',
+                'source_url' => 'nullable|string|max:500',
                 'captcha_token' => 'nullable|string',
             ]);
 
@@ -47,30 +48,30 @@ class NotificationController extends Controller
 
             // Prepare email content
             $emailData = [
-                'client_name'    => $request->name,
-                'client_email'   => $request->email,
-                'phone'          => $request->phone ?? 'Не указан',
-                'company'        => $request->company ?? 'Не указана',
+                'client_name' => $request->name,
+                'client_email' => $request->email,
+                'phone' => $request->phone ?? 'Не указан',
+                'company' => $request->company ?? 'Не указана',
                 'client_message' => $request->message,
-                'source_url'     => $request->source_url ?? 'Не указано',
-                'submitted_at'   => now()->setTimezone('Europe/Moscow')->format('d.m.Y H:i:s') . ' (МСК)',
+                'source_url' => $request->source_url ?? 'Не указано',
+                'submitted_at' => now()->setTimezone('Europe/Moscow')->format('d.m.Y H:i:s').' (МСК)',
             ];
 
             // Send email with graceful failure fallback
             try {
                 Mail::send('emails.contact-request', $emailData, function ($msg) use ($adminEmail, $request) {
                     $msg->to($adminEmail)
-                        ->subject('LEGET — Новая заявка от ' . $request->name);
+                        ->subject('LEGET — Новая заявка от '.$request->name);
                 });
 
                 Log::info('LEGET: Contact form notification sent successfully', [
-                    'to'   => $adminEmail,
+                    'to' => $adminEmail,
                     'from' => $request->email,
                 ]);
             } catch (Exception $mailException) {
                 Log::warning('LEGET: Contact form notification email sending failed, but request logged', [
-                    'to'    => $adminEmail,
-                    'from'  => $request->email,
+                    'to' => $adminEmail,
+                    'from' => $request->email,
                     'error' => $mailException->getMessage(),
                 ]);
             }
@@ -82,23 +83,25 @@ class NotificationController extends Controller
 
         } catch (ValidationException $e) {
             Log::warning('LEGET: Contact form validation failed', [
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Некорректные данные.',
-                'errors'  => $e->errors()
+                'errors' => $e->errors(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
             Log::error('LEGET: Contact form notification error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Не удалось отправить заявку.',
-                'errors'  => ['general' => ['Произошла ошибка при отправке.']],
+                'errors' => ['general' => ['Произошла ошибка при отправке.']],
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -110,36 +113,41 @@ class NotificationController extends Controller
     {
         try {
             Log::info('LEGET: Service request notification received', [
-                'name'         => $request->input('name'),
+                'name' => $request->input('name'),
                 'service_type' => $request->input('service_type'),
             ]);
 
             $isPartnership = $request->input('service_type') === 'partnership';
             $isSupplier = $isPartnership && $request->input('partnership_status') === 'supplier';
+            $isInstallment = $request->input('service_type') === 'installment';
 
             $request->validate([
                 'service_type' => 'required|string|max:50',
-                'name'         => 'required|string|max:255',
-                'phone'        => $isSupplier ? 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/' : ($isPartnership ? 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/' : 'required|string|max:50'),
-                'email'        => $isSupplier ? 'nullable|required_without:phone|email|max:255' : 'nullable|email|max:255',
-                'company'      => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
+                'name' => 'required|string|max:255',
+                'phone' => $isSupplier ? 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/' : ($isPartnership ? 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/' : 'required|string|max:50'),
+                'email' => $isSupplier ? 'nullable|required_without:phone|email|max:255' : 'nullable|email|max:255',
+                'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
                 'partnership_status' => 'nullable|in:referral,supplier',
-                'message'      => 'nullable|string|max:2000',
-                'source_url'   => 'nullable|string|max:500',
-                'city'         => 'nullable|string|max:100',
+                'message' => 'nullable|string|max:2000',
+                'source_url' => 'nullable|string|max:500',
+                'city' => 'nullable|string|max:100',
+                'passport_main' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'nullable',
+                'passport_registration' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'nullable',
+                'client_photo' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,webp|max:5120' : 'nullable',
             ]);
 
             // Human-readable labels for service types
             $labels = [
-                'consultation'      => 'Консультация',
-                'design-project'    => 'Дизайн-проект',
+                'consultation' => 'Консультация',
+                'design-project' => 'Дизайн-проект',
                 'furniture-project' => 'Проектирование мебели',
-                'assembly'          => 'Сборка и монтаж',
-                'measurement'       => 'Замер помещения',
-                'partnership'       => 'Сотрудничество',
-                'promo'             => 'Промокод',
-                'vacancy'           => 'Отклик на вакансию',
-                'careers'           => 'Отклик на вакансию',
+                'assembly' => 'Сборка и монтаж',
+                'measurement' => 'Замер помещения',
+                'installment' => 'Рассрочка',
+                'partnership' => 'Сотрудничество',
+                'promo' => 'Промокод',
+                'vacancy' => 'Отклик на вакансию',
+                'careers' => 'Отклик на вакансию',
             ];
 
             $serviceType = $request->input('service_type');
@@ -150,39 +158,56 @@ class NotificationController extends Controller
 
             // Prepare email content
             $emailData = [
-                'client_name'        => $request->name,
-                'phone'              => $request->phone,
-                'client_email'       => $isSupplier ? $request->email : null,
-                'company'            => $isSupplier ? $request->company : null,
+                'client_name' => $request->name,
+                'phone' => $request->phone,
+                'client_email' => $isSupplier ? $request->email : null,
+                'company' => $isSupplier ? $request->company : null,
                 'partnership_status' => $isPartnership ? ($isSupplier ? 'Вы фабрика или поставщик' : 'Вы приводите клиентов') : null,
                 'service_type_label' => $serviceLabel,
-                'client_message'     => $request->message,
-                'source_url'         => $request->source_url,
-                'city'               => $request->city,
-                'submitted_at'       => now()->setTimezone('Europe/Moscow')->format('d.m.Y H:i:s') . ' (МСК)',
+                'client_message' => $request->message,
+                'source_url' => $request->source_url,
+                'city' => $request->city,
+                'submitted_at' => now()->setTimezone('Europe/Moscow')->format('d.m.Y H:i:s').' (МСК)',
             ];
 
             // Send email with graceful failure fallback
             try {
-                Mail::send('emails.service-request', $emailData, function ($msg) use ($adminEmail, $request, $serviceLabel) {
+                Mail::send('emails.service-request', $emailData, function ($msg) use ($adminEmail, $request, $serviceLabel, $isInstallment) {
                     $msg->to($adminEmail)
-                        ->subject('LEGET — Заявка [' . $serviceLabel . '] от ' . $request->name);
+                        ->subject('LEGET — Заявка ['.$serviceLabel.'] от '.$request->name);
+
+                    if ($isInstallment) {
+                        $attachments = [
+                            'passport_main' => 'passport-main',
+                            'passport_registration' => 'passport-registration',
+                            'client_photo' => 'client-photo',
+                        ];
+
+                        foreach ($attachments as $field => $safeName) {
+                            $file = $request->file($field);
+                            $extension = $file->guessExtension() ?: 'bin';
+                            $msg->attach($file->getRealPath(), [
+                                'as' => $safeName.'.'.$extension,
+                                'mime' => $file->getMimeType(),
+                            ]);
+                        }
+                    }
                 });
 
                 Log::info('LEGET: Service request notification sent successfully', [
-                    'to'           => $adminEmail,
+                    'to' => $adminEmail,
                     'service_type' => $serviceType,
                 ]);
             } catch (Exception $mailException) {
                 // Заявка на партнёрство не сохраняется в CRM: при сбое почты
                 // возвращаем ошибку, чтобы посетитель мог повторить отправку.
-                if ($isPartnership) {
+                if ($isPartnership || $isInstallment) {
                     throw $mailException;
                 }
                 Log::warning('LEGET: Service request notification email sending failed, but request logged', [
-                    'to'           => $adminEmail,
+                    'to' => $adminEmail,
                     'service_type' => $serviceType,
-                    'error'        => $mailException->getMessage(),
+                    'error' => $mailException->getMessage(),
                 ]);
             }
 
@@ -193,23 +218,25 @@ class NotificationController extends Controller
 
         } catch (ValidationException $e) {
             Log::warning('LEGET: Service request validation failed', [
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Некорректные данные.',
-                'errors'  => $e->errors()
+                'errors' => $e->errors(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
             Log::error('LEGET: Service request notification error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Не удалось отправить заявку.',
-                'errors'  => ['general' => ['Произошла ошибка при отправке.']],
+                'errors' => ['general' => ['Произошла ошибка при отправке.']],
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -222,14 +249,14 @@ class NotificationController extends Controller
     {
         $defaultEmail = env('ADMIN_EMAIL', 'info@leget.ru');
 
-        if (!$sourceUrl) {
+        if (! $sourceUrl) {
             return $defaultEmail;
         }
 
         try {
             $parsedUrl = parse_url($sourceUrl);
             $host = $parsedUrl['host'] ?? '';
-            if (!$host) {
+            if (! $host) {
                 return $defaultEmail;
             }
 
@@ -237,31 +264,31 @@ class NotificationController extends Controller
             $domain = preg_replace('/^www\./', '', strtolower($host));
 
             // Find license
-            $license = \Illuminate\Support\Facades\DB::table('licenses')
+            $license = DB::table('licenses')
                 ->where('domain', $domain)
                 ->first();
 
             if ($license) {
                 // Find owner/user of the license
-                $user = \Illuminate\Support\Facades\DB::table('users')
+                $user = DB::table('users')
                     ->where('id', $license->user_id)
                     ->first();
 
-                if ($user && !empty($user->email)) {
+                if ($user && ! empty($user->email)) {
                     Log::info('Resolved recipient email for domain', [
                         'domain' => $domain,
-                        'email'  => $user->email,
+                        'email' => $user->email,
                     ]);
+
                     return $user->email;
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error resolving recipient email for service request', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
         return $defaultEmail;
     }
 }
-

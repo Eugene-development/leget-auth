@@ -78,7 +78,7 @@ final class FormSubmissionService
                         $id = $legacy->id;
                     }
                 }
-                $details = array_intersect_key($data, array_flip(['company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id']));
+                $details = array_intersect_key($data, array_flip(['form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id']));
                 $row = [
                     'id' => $id, 'submission_key' => $key, 'payload_hash' => $hash,
                     'service_type' => $type, 'form_id' => $data['form_id'] ?? $type,

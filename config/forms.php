@@ -6,6 +6,16 @@ return [
     'recipient_override' => env('FORM_RECIPIENT_OVERRIDE'),
     'attachment_disk' => env('FORM_ATTACHMENT_DISK', 'yandex'),
     'max_attempts' => 8,
+    'titles' => [
+        'platform-footer-subscription' => 'Будь в курсе событий',
+        'promo1-footer-subscription' => 'Подписка на новости',
+        'promo1-contact' => 'Контакты', 'promo2-contact' => 'Контакты',
+        'promo3-contact' => 'Скидка 10%', 'promo3-vacancy' => 'Напишите нам',
+        'promo1-vacancy' => 'Напишите нам', 'promo2-careers' => 'Открытое резюме',
+        'promo2-designers' => 'Заявка на партнёрство', 'promo1-partnership' => 'Партнёрство',
+        'promo1-warranty' => 'Гарантийное обращение', 'promo1-installment' => 'Заявка на рассрочку',
+        'platform-contact' => 'Заявка на интеграцию',
+    ],
     'types' => [
         'consultation' => 'Консультация',
         'design-project' => 'Дизайн-проект',

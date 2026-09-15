@@ -78,9 +78,12 @@ final class SmokeFormMail extends Command
                 'form_id' => $form, 'service_type' => $type,
                 'name' => 'TEST LEGET — не обрабатывать', 'phone' => '+79990000000',
                 'email' => 'test@example.com', 'city' => 'ТЕСТ',
-                'message' => '[TEST '.$run.'] Проверка формы '.$form.'. Это искусственные данные, связываться с клиентом не нужно.',
+                'message' => 'Тестовое обращение для проверки оформления и доставки письма. Это искусственные данные, связываться с клиентом не нужно.',
                 'source_url' => 'https://forms-test.invalid/'.$form,
             ];
+            if ($type === 'subscription') {
+                unset($data['name'], $data['phone'], $data['city'], $data['message']);
+            }
             if ($type === 'warranty') {
                 $data['contract_number'] = 'TEST-NO-CONTRACT';
             }

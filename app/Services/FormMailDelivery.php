@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +27,23 @@ final class FormMailDelivery
                 throw new \RuntimeException('A delivery mail transport is required');
             }
             $details = json_decode($row->details ?: '{}', true, flags: JSON_THROW_ON_ERROR);
+            $title = $details['form_title'] ?? config('forms.titles.'.$row->form_id)
+                ?? config('forms.types')[$row->service_type] ?? 'Новое обращение';
+            $title = mb_substr(trim(preg_replace('/[\p{C}\p{Z}\s]+/u', ' ', html_entity_decode(strip_tags($title), ENT_QUOTES | ENT_HTML5, 'UTF-8'))), 0, 160);
+            if ($title === '') {
+                $title = 'Новое обращение';
+            }
+            $labels = ['company' => 'Компания', 'partnership_status' => 'Формат сотрудничества', 'contract_number' => 'Номер договора', 'position' => 'Вакансия', 'partner_type' => 'Тип партнёра', 'inn' => 'ИНН', 'website' => 'Сайт'];
+            $values = ['referral' => 'Вы приводите клиентов', 'supplier' => 'Фабрика или поставщик', 'manufacturer' => 'Производитель', 'designer' => 'Дизайнер', 'assembler' => 'Сборщик'];
+            $displayDetails = [];
+            foreach ($labels as $key => $label) {
+                if (! empty($details[$key])) {
+                    $displayDetails[$label] = $values[$details[$key]] ?? $details[$key];
+                }
+            }
             $data = [
+                'form_title' => $title, 'display_details' => $displayDetails,
+                'submitted_label' => Carbon::parse($row->created_at, config('app.timezone'))->setTimezone('Europe/Moscow')->locale('ru')->translatedFormat('j F Y, H:i'),
                 'request_id' => $id, 'form_id' => $row->form_id,
                 'client_name' => $row->name, 'client_email' => $row->email,
                 'phone' => $row->phone ?: null, 'company' => $details['company'] ?? null,
@@ -38,8 +55,8 @@ final class FormMailDelivery
                 'submitted_at' => $row->created_at,
             ];
             $attachments = DB::table('service_request_attachments')->where('service_request_id', $id)->get();
-            Mail::send('emails.form-submission', $data, function ($message) use ($row, $data, $attachments, $id) {
-                $message->to($row->recipient_email)->subject('LEGET — '.$data['service_type_label'].' ['.$id.']');
+            Mail::send('emails.form-submission', $data, function ($message) use ($row, $data, $attachments) {
+                $message->to($row->recipient_email)->subject('LEGET — '.$data['form_title']);
                 if ($row->email) {
                     $message->replyTo($row->email);
                 }

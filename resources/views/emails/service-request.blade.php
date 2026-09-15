@@ -144,6 +144,9 @@
                 @if(!empty($partnership_status))
                 <div class="info-row"><span class="info-label">Статус:</span><span class="info-value">{{ $partnership_status }}</span></div>
                 @endif
+				@if(!empty($contract_number))
+				<div class="info-row"><span class="info-label">Номер договора:</span><span class="info-value">{{ $contract_number }}</span></div>
+				@endif
                 <div class="info-row">
                     <span class="info-label">Тип услуги:</span>
                     <span class="info-value" style="font-weight: 600;">{{ $service_type_label }}</span>

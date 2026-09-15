@@ -120,20 +120,24 @@ class NotificationController extends Controller
             $isPartnership = $request->input('service_type') === 'partnership';
             $isSupplier = $isPartnership && $request->input('partnership_status') === 'supplier';
             $isInstallment = $request->input('service_type') === 'installment';
+            $isWarranty = $request->input('service_type') === 'warranty';
 
             $request->validate([
                 'service_type' => 'required|string|max:50',
                 'name' => 'required|string|max:255',
-                'phone' => $isSupplier ? 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/' : ($isPartnership ? 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/' : 'required|string|max:50'),
+                'phone' => $isWarranty ? 'nullable|string|max:50' : ($isSupplier ? 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/' : ($isPartnership ? 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/' : 'required|string|max:50')),
                 'email' => $isSupplier ? 'nullable|required_without:phone|email|max:255' : 'nullable|email|max:255',
                 'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
                 'partnership_status' => 'nullable|in:referral,supplier',
+                'contract_number' => $isWarranty ? 'required|string|max:100' : 'nullable|string|max:100',
                 'message' => 'nullable|string|max:2000',
                 'source_url' => 'nullable|string|max:500',
                 'city' => 'nullable|string|max:100',
                 'passport_main' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'nullable',
                 'passport_registration' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'nullable',
                 'client_photo' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,webp|max:5120' : 'nullable',
+                'photos' => $isWarranty ? 'nullable|array|max:3' : 'nullable',
+                'photos.*' => $isWarranty ? 'file|mimes:jpg,jpeg,png,webp|max:5120' : 'nullable',
             ]);
 
             // Human-readable labels for service types
@@ -148,6 +152,7 @@ class NotificationController extends Controller
                 'promo' => 'Промокод',
                 'vacancy' => 'Отклик на вакансию',
                 'careers' => 'Отклик на вакансию',
+                'warranty' => 'Гарантийное обращение',
             ];
 
             $serviceType = $request->input('service_type');
@@ -163,6 +168,7 @@ class NotificationController extends Controller
                 'client_email' => $isSupplier ? $request->email : null,
                 'company' => $isSupplier ? $request->company : null,
                 'partnership_status' => $isPartnership ? ($isSupplier ? 'Вы фабрика или поставщик' : 'Вы приводите клиентов') : null,
+                'contract_number' => $isWarranty ? $request->input('contract_number') : null,
                 'service_type_label' => $serviceLabel,
                 'client_message' => $request->message,
                 'source_url' => $request->source_url,
@@ -172,7 +178,7 @@ class NotificationController extends Controller
 
             // Send email with graceful failure fallback
             try {
-                Mail::send('emails.service-request', $emailData, function ($msg) use ($adminEmail, $request, $serviceLabel, $isInstallment) {
+                Mail::send('emails.service-request', $emailData, function ($msg) use ($adminEmail, $request, $serviceLabel, $isInstallment, $isWarranty) {
                     $msg->to($adminEmail)
                         ->subject('LEGET — Заявка ['.$serviceLabel.'] от '.$request->name);
 
@@ -192,6 +198,16 @@ class NotificationController extends Controller
                             ]);
                         }
                     }
+
+                    if ($isWarranty) {
+                        foreach ($request->file('photos', []) as $index => $file) {
+                            $extension = $file->guessExtension() ?: 'bin';
+                            $msg->attach($file->getRealPath(), [
+                                'as' => 'warranty-photo-'.($index + 1).'.'.$extension,
+                                'mime' => $file->getMimeType(),
+                            ]);
+                        }
+                    }
                 });
 
                 Log::info('LEGET: Service request notification sent successfully', [
@@ -201,7 +217,7 @@ class NotificationController extends Controller
             } catch (Exception $mailException) {
                 // Заявка на партнёрство не сохраняется в CRM: при сбое почты
                 // возвращаем ошибку, чтобы посетитель мог повторить отправку.
-                if ($isPartnership || $isInstallment) {
+                if ($isPartnership || $isInstallment || $isWarranty) {
                     throw $mailException;
                 }
                 Log::warning('LEGET: Service request notification email sending failed, but request logged', [

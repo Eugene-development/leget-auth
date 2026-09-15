@@ -8,10 +8,14 @@ use App\Enums\PartnerStatus;
 use App\Enums\PartnerType;
 use App\Models\PartnerProfile;
 use App\Models\User;
+use App\Services\FormMailDelivery;
+use App\Services\FormSubmissionService;
 use App\Services\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Ramsey\Uuid\Uuid;
 
 /**
  * Заявка на партнёрство от вошедшего пользователя.
@@ -53,29 +57,42 @@ final class PartnerApplicationController extends Controller
             'company' => 'nullable|string|max:255',
             'inn' => 'nullable|string|max:12',
             'website' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:120',
+            'city' => 'nullable|string|max:100',
             'comment' => 'nullable|string|max:2000',
         ]);
 
-        $profile = $user->partnerProfile;
+        [$profile, $submission] = DB::transaction(function () use ($user, $validated, $request) {
+            $profile = $user->partnerProfile;
 
-        if ($profile instanceof PartnerProfile) {
-            $profile->fill($validated);
+            if ($profile instanceof PartnerProfile) {
+                $profile->fill($validated);
 
-            // Повторная подача после отказа снова уходит в разбор. Одобренную
-            // заявку правки реквизитов не роняют обратно в очередь: партнёр
-            // уже работает, и лишать его Офиса из-за нового адреса сайта нельзя.
-            if ($profile->status === PartnerStatus::Rejected) {
-                $profile->status = PartnerStatus::Pending;
-                $profile->reviewed_by = null;
-                $profile->reviewed_at = null;
-                $profile->review_note = null;
+                // Повторная подача после отказа снова уходит в разбор. Одобренную
+                // заявку правки реквизитов не роняют обратно в очередь: партнёр
+                // уже работает, и лишать его Офиса из-за нового адреса сайта нельзя.
+                if ($profile->status === PartnerStatus::Rejected) {
+                    $profile->status = PartnerStatus::Pending;
+                    $profile->reviewed_by = null;
+                    $profile->reviewed_at = null;
+                    $profile->review_note = null;
+                }
+
+                $profile->save();
+            } else {
+                $profile = $user->partnerProfile()->create($validated);
             }
 
-            $profile->save();
-        } else {
-            $profile = $user->partnerProfile()->create($validated);
-        }
+            $submission = app(FormSubmissionService::class)->accept([
+                'service_type' => 'partner-application', 'form_id' => 'platform-partner-application',
+                'submission_key' => (string) Uuid::uuid5(Uuid::NAMESPACE_URL, $user->id.':'.json_encode($validated)),
+                'name' => $user->name, 'email' => $user->email, 'phone' => $user->phone,
+                'message' => $validated['comment'] ?? null,
+                'partner_profile_id' => $profile->id,
+            ] + array_diff_key($validated, ['comment' => true]), $request);
+
+            return [$profile, $submission];
+        });
+        app(FormMailDelivery::class)->deliver($submission->id);
 
         return response()->json([
             'success' => true,

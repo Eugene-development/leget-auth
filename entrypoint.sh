@@ -37,7 +37,10 @@ fi
 
 # Генерируем ключ приложения если его нет
 echo "🔑 Checking application key..."
-su-exec www-data php artisan key:generate --force 2>/dev/null || echo "⚠️  Key generation failed"
+# Encrypted form attachments must remain readable after restarts.
+if ! su-exec www-data php -r 'require "vendor/autoload.php"; $app = require "bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); exit(config("app.key") ? 0 : 1);'; then
+    su-exec www-data php artisan key:generate --force
+fi
 
 # Генерируем JWT_SECRET для валидации JWT токенов
 echo "🔑 Setting JWT_SECRET..."

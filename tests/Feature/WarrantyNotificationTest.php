@@ -5,21 +5,21 @@ namespace Tests\Feature;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
-use Tests\TestCase;
+use Tests\FormTestCase;
 
-class WarrantyNotificationTest extends TestCase
+class WarrantyNotificationTest extends FormTestCase
 {
     public function test_warranty_application_sends_contract_and_up_to_three_photos(): void
     {
         $message = Mockery::mock();
         $message->shouldReceive('to')->once()->andReturnSelf();
         $message->shouldReceive('subject')->once()->andReturnSelf();
-        $message->shouldReceive('attach')->times(3)->andReturnSelf();
+        $message->shouldReceive('attachData')->times(3)->andReturnSelf();
 
         Mail::shouldReceive('send')->once()->withArgs(function ($view, $data, $callback) use ($message) {
             $callback($message);
 
-            return $view === 'emails.service-request'
+            return $view === 'emails.form-submission'
                 && $data['service_type_label'] === 'Гарантийное обращение'
                 && $data['client_name'] === 'Анна'
                 && $data['contract_number'] === 'М-2026-001'

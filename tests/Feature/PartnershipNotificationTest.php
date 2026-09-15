@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Mail;
-use Tests\TestCase;
+use Tests\FormTestCase;
 
-class PartnershipNotificationTest extends TestCase
+class PartnershipNotificationTest extends FormTestCase
 {
     private function supplier(array $overrides = []): array
     {
@@ -20,7 +20,7 @@ class PartnershipNotificationTest extends TestCase
     public function test_supplier_can_leave_only_email_and_all_details_reach_mail(): void
     {
         Mail::shouldReceive('send')->once()->withArgs(function ($view, $data, $callback) {
-            return $view === 'emails.service-request'
+            return $view === 'emails.form-submission'
                 && $data['client_email'] === 'partner@example.com'
                 && $data['company'] === 'Фабрика'
                 && $data['client_name'] === 'Анна'
@@ -51,8 +51,7 @@ class PartnershipNotificationTest extends TestCase
 
     public function test_referral_includes_city_comment_and_requires_phone(): void
     {
-        Mail::shouldReceive('send')->once()->withArgs(fn ($view, $data, $callback) =>
-            $data['city'] === 'Москва' && $data['client_message'] === 'Хочу сотрудничать'
+        Mail::shouldReceive('send')->once()->withArgs(fn ($view, $data, $callback) => $data['city'] === 'Москва' && $data['client_message'] === 'Хочу сотрудничать'
             && $data['partnership_status'] === 'Вы приводите клиентов');
         $payload = ['service_type' => 'partnership', 'partnership_status' => 'referral', 'name' => 'Иван', 'city' => 'Москва', 'message' => 'Хочу сотрудничать'];
         $this->postJson('/api/notify/service-request', $payload + ['email' => 'partner@example.com'])
@@ -67,10 +66,10 @@ class PartnershipNotificationTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
 
-    public function test_mail_failure_does_not_report_success(): void
+    public function test_mail_failure_reports_saved_pending_delivery(): void
     {
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('Mail unavailable'));
         $this->postJson('/api/notify/service-request', $this->supplier(['email' => 'partner@example.com']))
-            ->assertStatus(500)->assertJson(['success' => false]);
+            ->assertStatus(202)->assertJson(['success' => true, 'mail_status' => 'pending']);
     }
 }

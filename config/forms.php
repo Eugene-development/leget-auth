@@ -15,6 +15,8 @@ return [
         'promo2-designers' => 'Заявка на партнёрство', 'promo1-partnership' => 'Партнёрство',
         'promo1-warranty' => 'Гарантийное обращение', 'promo1-installment' => 'Заявка на рассрочку',
         'platform-contact' => 'Заявка на интеграцию',
+        'promo1-appliance-selection' => 'Подбор техники',
+        'promo1-plumbing-selection' => 'Подбор сантехники',
     ],
     'types' => [
         'consultation' => 'Консультация',
@@ -22,6 +24,9 @@ return [
         'furniture-project' => 'Проектирование мебели',
         'assembly' => 'Сборка и монтаж',
         'measurement' => 'Замер помещения',
+        'countertop-estimate' => 'Просчёт столешницы',
+        'appliance-selection' => 'Подбор техники',
+        'plumbing-selection' => 'Подбор сантехники',
         'installment' => 'Рассрочка',
         'partnership' => 'Сотрудничество',
         'promo' => 'Промокод',
@@ -32,5 +37,5 @@ return [
         'subscription' => 'Подписка',
         'partner-application' => 'Заявка партнёра платформы',
     ],
-    'conversion_types' => ['consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'installment', 'partnership', 'promo', 'contact'],
+    'conversion_types' => ['consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact'],
 ];

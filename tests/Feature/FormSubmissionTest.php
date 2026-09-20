@@ -27,6 +27,9 @@ class FormSubmissionTest extends FormTestCase
         });
         foreach ($types as $type) {
             $payload = $this->payload($type) + ['email' => 'test@example.com', 'contract_number' => 'TEST-001'];
+            if ($type === 'countertop-estimate') {
+                $payload['dimensions'] = ['2400 × 600 мм'];
+            }
             $response = $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('mail_status', 'sent');
             $this->assertDatabaseHas('service_requests', ['id' => $response->json('id'), 'service_type' => $type, 'recipient_email' => 'info@novostroy.org']);
             $this->assertSame(in_array($type, config('forms.conversion_types'), true), DB::table('conversions')->where('service_request_id', $response->json('id'))->exists());
@@ -133,6 +136,33 @@ class FormSubmissionTest extends FormTestCase
         $this->assertDatabaseHas('service_requests', ['service_type' => 'subscription', 'email' => 'test@example.com', 'phone' => '']);
         $this->postJson('/api/notify/service-request', ['service_type' => 'contact', 'name' => 'TEST', 'phone' => '+79990000000'])->assertOk();
         $this->assertDatabaseHas('service_requests', ['service_type' => 'contact', 'email' => null, 'phone' => '+79990000000']);
+    }
+
+    public function test_countertop_estimate_saves_up_to_ten_validated_dimensions(): void
+    {
+        Mail::shouldReceive('send')->once();
+        $response = $this->postJson('/api/notify/service-request', $this->payload('countertop-estimate') + [
+            'form_id' => 'promo1-countertop-estimate',
+            'dimensions' => ['first' => '2400 × 600 мм', 'second' => '1200 × 650 мм'],
+        ])->assertOk();
+
+        $row = DB::table('service_requests')->where('id', $response->json('id'))->first();
+        $this->assertSame(['2400 × 600 мм', '1200 × 650 мм'], json_decode($row->details, true, flags: JSON_THROW_ON_ERROR)['dimensions']);
+        $this->assertDatabaseHas('conversions', ['service_request_id' => $row->id, 'type' => 'countertop-estimate']);
+    }
+
+    public function test_countertop_dimensions_are_required_bounded_and_type_scoped(): void
+    {
+        Mail::shouldReceive('send')->never();
+        $this->postJson('/api/notify/service-request', $this->payload('countertop-estimate'))
+            ->assertUnprocessable()->assertJsonValidationErrors('dimensions');
+        $this->postJson('/api/notify/service-request', $this->payload('countertop-estimate') + [
+            'dimensions' => array_fill(0, 11, '1000 × 600 мм'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('dimensions');
+        $this->postJson('/api/notify/service-request', $this->payload() + [
+            'dimensions' => ['1000 × 600 мм'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('dimensions');
+        $this->assertDatabaseCount('service_requests', 0);
     }
 
     public function test_legacy_graphql_then_notify_adopts_existing_row_and_conversion(): void

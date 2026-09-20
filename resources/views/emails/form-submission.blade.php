@@ -47,7 +47,7 @@
                     @if(count($display_details))
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;margin-top:12px;border-top:1px solid #edf0f3;font-size:14px;line-height:23px;">
                         @foreach($display_details as $label => $value)
-                        <tr><th class="field-label" align="left" valign="top" width="125" style="width:125px;padding:14px 12px 0 0;font-weight:normal;color:#7b828e;">{{ $label }}</th><td style="padding:14px 0 0;word-wrap:break-word;overflow-wrap:anywhere;">{{ $value }}</td></tr>
+                        <tr><th class="field-label" align="left" valign="top" width="125" style="width:125px;padding:14px 12px 0 0;font-weight:normal;color:#7b828e;">{{ $label }}</th><td style="padding:14px 0 0;white-space:pre-line;word-wrap:break-word;overflow-wrap:anywhere;">{{ $value }}</td></tr>
                         @endforeach
                     </table>
                     @endif

@@ -85,6 +85,7 @@ class NotificationController extends Controller
             $isWarranty = $request->input('service_type') === 'warranty';
             $isContact = $request->input('service_type') === 'contact';
             $isSubscription = $request->input('service_type') === 'subscription';
+            $isCountertopEstimate = $request->input('service_type') === 'countertop-estimate';
             $phoneRule = match (true) {
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
                 $isContact => 'nullable|required_without:email|string|max:50',
@@ -112,6 +113,8 @@ class NotificationController extends Controller
                 'form_id' => 'nullable|string|max:120|regex:/^[a-zA-Z0-9._-]+$/',
                 'submission_key' => 'nullable|uuid',
                 'city' => 'nullable|string|max:100',
+                'dimensions' => $isCountertopEstimate ? 'required|array|min:1|max:10' : 'prohibited',
+                'dimensions.*' => $isCountertopEstimate ? 'required|string|max:120' : 'prohibited',
                 'passport_main' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'prohibited',
                 'passport_registration' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'prohibited',
                 'client_photo' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,webp|max:5120' : 'prohibited',

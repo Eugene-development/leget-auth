@@ -41,6 +41,13 @@ final class FormMailDelivery
                     $displayDetails[$label] = $values[$details[$key]] ?? $details[$key];
                 }
             }
+            if (! empty($details['dimensions']) && is_array($details['dimensions'])) {
+                $displayDetails['Размеры'] = implode("\n", array_map(
+                    fn ($value, $index) => ($index + 1).'. '.$value,
+                    $details['dimensions'],
+                    array_keys($details['dimensions'])
+                ));
+            }
             $data = [
                 'form_title' => $title, 'display_details' => $displayDetails,
                 'submitted_label' => Carbon::parse($row->created_at, config('app.timezone'))->setTimezone('Europe/Moscow')->locale('ru')->translatedFormat('j F Y, H:i'),

@@ -60,4 +60,24 @@ class FormMailPresentationTest extends FormTestCase
         });
         $this->postJson('/api/notify/service-request', ['service_type' => 'warranty', 'name' => 'Анна', 'contract_number' => 'Д-15'])->assertOk();
     }
+
+    public function test_countertop_dimensions_are_labelled_numbered_and_escaped(): void
+    {
+        Mail::shouldReceive('send')->once()->withArgs(function ($view, $data, $callback) {
+            $html = view($view, $data)->render();
+            $this->assertStringContainsString('Размеры', $html);
+            $this->assertStringContainsString('1. 2400 × 600 мм', $html);
+            $this->assertStringContainsString('2. &lt;script&gt;', $html);
+            $this->assertStringNotContainsString('<script>', $html);
+
+            return true;
+        });
+        $this->postJson('/api/notify/service-request', [
+            'service_type' => 'countertop-estimate',
+            'form_id' => 'promo1-countertop-estimate',
+            'name' => 'Анна',
+            'phone' => '+79990000000',
+            'dimensions' => ['2400 × 600 мм', '<script>'],
+        ])->assertOk();
+    }
 }

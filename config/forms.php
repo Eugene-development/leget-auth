@@ -23,7 +23,7 @@ return [
         'design-project' => 'Дизайн-проект',
         'furniture-project' => 'Проектирование мебели',
         'assembly' => 'Сборка и монтаж',
-        'measurement' => 'Замер помещения',
+        'measurement' => 'Заказ замера',
         'countertop-estimate' => 'Просчёт столешницы',
         'appliance-selection' => 'Подбор техники',
         'plumbing-selection' => 'Подбор сантехники',

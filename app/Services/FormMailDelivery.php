@@ -33,12 +33,13 @@ final class FormMailDelivery
             if ($title === '') {
                 $title = 'Новое обращение';
             }
-            $labels = ['company' => 'Компания', 'partnership_status' => 'Формат сотрудничества', 'contract_number' => 'Номер договора', 'position' => 'Вакансия', 'partner_type' => 'Тип партнёра', 'inn' => 'ИНН', 'website' => 'Сайт'];
+            $labels = ['company' => 'Компания', 'partnership_status' => 'Статус отправителя', 'contract_number' => 'Номер договора', 'position' => 'Вакансия', 'partner_type' => 'Тип партнёра', 'inn' => 'ИНН', 'website' => 'Сайт'];
             $values = ['referral' => 'Вы приводите клиентов', 'supplier' => 'Фабрика или поставщик', 'manufacturer' => 'Производитель', 'designer' => 'Дизайнер', 'assembler' => 'Сборщик'];
+            $partnershipLabels = ['referral' => 'Вы приводите клиентов', 'manufacturer' => 'Вы фабрика изготовитель', 'supplier' => 'Вы поставщик', 'other' => 'Иное'];
             $displayDetails = [];
             foreach ($labels as $key => $label) {
                 if (! empty($details[$key])) {
-                    $displayDetails[$label] = $values[$details[$key]] ?? $details[$key];
+                    $displayDetails[$label] = ($key === 'partnership_status' ? $partnershipLabels[$details[$key]] ?? null : $values[$details[$key]] ?? null) ?? $details[$key];
                 }
             }
             if (! empty($details['dimensions']) && is_array($details['dimensions'])) {
@@ -54,7 +55,7 @@ final class FormMailDelivery
                 'request_id' => $id, 'form_id' => $row->form_id,
                 'client_name' => $row->name, 'client_email' => $row->email,
                 'phone' => $row->phone ?: null, 'company' => $details['company'] ?? null,
-                'partnership_status' => $row->service_type === 'partnership' ? (($details['partnership_status'] ?? '') === 'supplier' ? 'Вы фабрика или поставщик' : 'Вы приводите клиентов') : null,
+                'partnership_status' => $row->service_type === 'partnership' ? ($partnershipLabels[$details['partnership_status'] ?? ''] ?? null) : null,
                 'contract_number' => $details['contract_number'] ?? null,
                 'service_type_label' => config('forms.types')[$row->service_type] ?? $row->service_type,
                 'client_message' => $row->message, 'source_url' => $row->source_url,

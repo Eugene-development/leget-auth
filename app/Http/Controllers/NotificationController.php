@@ -80,7 +80,7 @@ class NotificationController extends Controller
     {
         try {
             $isPartnership = $request->input('service_type') === 'partnership';
-            $isSupplier = $isPartnership && $request->input('partnership_status') === 'supplier';
+            $isSupplier = $isPartnership && in_array($request->input('partnership_status'), ['manufacturer', 'supplier'], true);
             $isInstallment = $request->input('service_type') === 'installment';
             $isWarranty = $request->input('service_type') === 'warranty';
             $isContact = $request->input('service_type') === 'contact';
@@ -105,7 +105,7 @@ class NotificationController extends Controller
                 'phone' => $phoneRule,
                 'email' => $emailRule,
                 'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
-                'partnership_status' => 'nullable|in:referral,supplier',
+                'partnership_status' => 'required_if:form_id,promo1-partnership|nullable|in:referral,manufacturer,supplier,other',
                 'contract_number' => $isWarranty ? 'required|string|max:100' : 'nullable|string|max:100',
                 'message' => 'nullable|string|max:2000',
                 'source_url' => 'nullable|url:http,https|max:500',

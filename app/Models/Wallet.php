@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Wallet extends Model
 {
+    protected $fillable = ['user_id', 'balance'];
+
     /**
      * Получить владельца кошелька.
      */

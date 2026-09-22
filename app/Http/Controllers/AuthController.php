@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Wallet;
+use Illuminate\Support\Facades\DB;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\SmartCaptchaService;
 use Illuminate\Http\Request;
@@ -46,12 +48,17 @@ class AuthController extends Controller
                 'captcha_token'         => 'nullable|string',
             ]);
 
-            $user = User::create([
-                'name'     => $request->name,
-                'email'    => $request->email,
-                'password' => Hash::make($request->password),
-                'phone'    => $request->phone,
-            ]);
+            $user = DB::transaction(function () use ($request) {
+                $user = User::create([
+                    'name'     => $request->name,
+                    'email'    => $request->email,
+                    'password' => Hash::make($request->password),
+                    'phone'    => $request->phone,
+                ]);
+                Wallet::create(['user_id' => $user->id, 'balance' => '0.00']);
+
+                return $user;
+            });
 
             // Send email verification notification
             try {

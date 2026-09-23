@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\SmartCaptchaService;
@@ -12,6 +13,7 @@ use App\Services\UserRole;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -71,16 +73,24 @@ final class ClientAuthController extends Controller
 
             $email = strtolower(trim($validated['email']));
 
-            $user = User::create([
-                'name' => $validated['name'],
-                'email' => $email,
-                'password' => Hash::make($validated['password']),
-                'phone' => $validated['phone'] ?? null,
-                'region' => $validated['region'] ?? null,
-            ]);
+            $user = DB::transaction(function () use ($validated, $email, $request) {
+                $user = User::create([
+                    'name' => $validated['name'],
+                    'email' => $email,
+                    'password' => Hash::make($validated['password']),
+                    'phone' => $validated['phone'] ?? null,
+                    'region' => $validated['region'] ?? null,
+                ]);
+
+                if ($request->routeIs('university.register')) {
+                    $user->forceFill(['role' => Role::Student])->save();
+                }
+
+                return $user;
+            });
 
             try {
-                $user->notify(new VerifyEmailNotification());
+                $user->notify(new VerifyEmailNotification);
             } catch (Exception $e) {
                 // Письмо — не условие регистрации: кабинет уже доступен,
                 // подтверждение можно запросить повторно.
@@ -97,7 +107,7 @@ final class ClientAuthController extends Controller
             return response()->json([
                 'success' => true,
                 'user' => $profiles->for($user->fresh()),
-                'role' => UserRole::CLIENT,
+                'role' => $roles->of($user),
                 'token' => $token,
                 'token_type' => 'bearer',
                 'expires_in' => JWTAuth::factory()->getTTL() * 60,
@@ -174,7 +184,7 @@ final class ClientAuthController extends Controller
             return response()->json([
                 'success' => true,
                 'user' => $profiles->for($user),
-                'role' => UserRole::CLIENT,
+                'role' => $roles->of($user),
                 'token' => $token,
                 'token_type' => 'bearer',
                 'expires_in' => JWTAuth::factory()->getTTL() * 60,

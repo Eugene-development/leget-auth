@@ -69,3 +69,16 @@ Route::post('/notify/contact', [NotificationController::class, 'sendContactNotif
 
 Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
     ->middleware('throttle:10,1');
+
+// University: public program, protected educational content and server-side grading.
+Route::post('/university/register', [ClientAuthController::class, 'register'])
+    ->name('university.register')->middleware('throttle:client-auth');
+Route::get('/university/catalog', [\App\Http\Controllers\UniversityController::class, 'catalog']);
+Route::post('/university/enroll', [\App\Http\Controllers\UniversityController::class, 'enroll'])
+    ->middleware(['auth:api', 'throttle:10,1']);
+Route::prefix('university')->middleware(['auth:api', 'can:university.study'])->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\UniversityController::class, 'dashboard']);
+    Route::get('/courses/{slug}', [\App\Http\Controllers\UniversityController::class, 'course']);
+    Route::post('/courses/{slug}/assess', [\App\Http\Controllers\UniversityController::class, 'assess'])->middleware('throttle:30,1');
+    Route::get('/certificates/{id}', [\App\Http\Controllers\UniversityController::class, 'certificate']);
+});

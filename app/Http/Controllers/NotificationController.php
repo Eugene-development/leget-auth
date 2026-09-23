@@ -86,6 +86,7 @@ class NotificationController extends Controller
             $isContact = $request->input('service_type') === 'contact';
             $isSubscription = $request->input('service_type') === 'subscription';
             $isCountertopEstimate = $request->input('service_type') === 'countertop-estimate';
+            $isSiteConsultation = $request->input('form_id') === 'promo1-contacts-site-consultation';
             $phoneRule = match (true) {
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
                 $isContact => 'nullable|required_without:email|string|max:50',
@@ -113,6 +114,8 @@ class NotificationController extends Controller
                 'form_id' => 'nullable|string|max:120|regex:/^[a-zA-Z0-9._-]+$/',
                 'submission_key' => 'nullable|uuid',
                 'city' => 'nullable|string|max:100',
+                'object_address' => $isSiteConsultation ? 'required|string|min:10|max:500' : 'prohibited',
+                'visit_time' => $isSiteConsultation ? 'nullable|string|max:160' : 'prohibited',
                 'dimensions' => $isCountertopEstimate ? 'required|array|min:1|max:10' : 'prohibited',
                 'dimensions.*' => $isCountertopEstimate ? 'required|string|max:120' : 'prohibited',
                 'passport_main' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'prohibited',
@@ -122,6 +125,10 @@ class NotificationController extends Controller
                 'position' => 'nullable|string|max:255',
                 'photos.*' => $isWarranty ? 'file|mimes:jpg,jpeg,png,webp|max:5120' : 'nullable',
             ]);
+
+            if ($isSiteConsultation && $validated['service_type'] !== 'consultation') {
+                throw ValidationException::withMessages(['service_type' => 'Неверный тип заявки.']);
+            }
 
             return $this->accept($request, $validated);
 

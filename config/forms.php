@@ -17,6 +17,7 @@ return [
         'platform-contact' => 'Заявка на интеграцию',
         'promo1-appliance-selection' => 'Подбор техники',
         'promo1-plumbing-selection' => 'Подбор сантехники',
+        'promo1-contacts-site-consultation' => 'Консультация на объекте',
     ],
     'types' => [
         'consultation' => 'Консультация',

@@ -78,7 +78,7 @@ final class FormSubmissionService
                         $id = $legacy->id;
                     }
                 }
-                $details = array_intersect_key($data, array_flip(['form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions']));
+                $details = array_intersect_key($data, array_flip(['form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions', 'object_address', 'visit_time']));
                 if (isset($details['dimensions']) && is_array($details['dimensions'])) {
                     $details['dimensions'] = array_values($details['dimensions']);
                 }

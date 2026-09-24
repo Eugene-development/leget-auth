@@ -21,7 +21,7 @@ abstract class FormTestCase extends TestCase
             });
         }
         if (! Schema::hasTable('service_requests')) {
-            foreach (['2026_05_21_000001_create_service_requests_table.php', '2026_08_08_000001_create_conversions_table.php', '2026_09_15_120000_unify_form_submissions.php'] as $file) {
+            foreach (['2026_05_21_000001_create_service_requests_table.php', '2026_08_08_000001_create_conversions_table.php', '2026_09_15_120000_unify_form_submissions.php', '2026_09_23_180000_create_crm_tables.php', '2026_09_23_180100_snapshot_crm_template_metadata.php'] as $file) {
                 (require base_path('../leget-db/database/migrations/'.$file))->up();
             }
         }

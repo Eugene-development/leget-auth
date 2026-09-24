@@ -32,6 +32,8 @@ enum Role: string
 
     case Client = 'client';
 
+    case Manager = 'manager';
+
     case Student = 'student';
 
     case Partner = 'partner';
@@ -61,8 +63,10 @@ enum Role: string
     public function abilities(): array
     {
         return match ($this) {
+            self::Manager => ['crm.work'],
             self::Student => ['university.study'],
             self::Superadmin => [
+                'crm.admin',
                 'conversions.view',
                 'conversions.record',
                 'clients.view',

@@ -65,10 +65,10 @@ Route::prefix('auth')->middleware('auth:api')->group(function () {
 
 // ─── Contact form notification (public, throttled) ───────────────────────────
 Route::post('/notify/contact', [NotificationController::class, 'sendContactNotification'])
-    ->middleware('throttle:10,1');
+    ->middleware([\App\Http\Middleware\ResolveFormSiteContext::class, 'throttle:10,1']);
 
 Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
-    ->middleware('throttle:10,1');
+    ->middleware([\App\Http\Middleware\ResolveFormSiteContext::class, 'throttle:10,1']);
 
 // University: public program, protected educational content and server-side grading.
 Route::post('/university/register', [ClientAuthController::class, 'register'])
@@ -81,4 +81,10 @@ Route::prefix('university')->middleware(['auth:api', 'can:university.study'])->g
     Route::get('/courses/{slug}', [\App\Http\Controllers\UniversityController::class, 'course']);
     Route::post('/courses/{slug}/assess', [\App\Http\Controllers\UniversityController::class, 'assess'])->middleware('throttle:30,1');
     Route::get('/certificates/{id}', [\App\Http\Controllers\UniversityController::class, 'certificate']);
+});
+
+Route::prefix('crm/sites/{site}')->middleware(['auth:api', 'throttle:60,1'])->group(function () {
+    Route::post('/offline', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'offline']);
+    Route::post('/apply', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'apply'])->middleware('throttle:10,1');
+    Route::get('/attachments/{id}', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'attachment']);
 });

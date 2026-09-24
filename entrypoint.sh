@@ -62,6 +62,14 @@ if [ -f "/var/www/.env" ]; then
     echo "✅ JWT_SECRET written to .env"
 fi
 
+# Shared form gateway context key is private and stable across container restarts.
+if [ -f "/run/secrets/form_context_secret" ]; then
+    FORM_CONTEXT_SECRET=$(tr -d '\r\n' < /run/secrets/form_context_secret)
+    export FORM_CONTEXT_SECRET
+    sed -i '/^FORM_CONTEXT_SECRET=/d' /var/www/.env
+    printf '\nFORM_CONTEXT_SECRET=%s\n' "$FORM_CONTEXT_SECRET" >> /var/www/.env
+fi
+
 echo "✅ Laravel initialization complete!"
 
 # Запуск php-fpm от root пользователя чтобы избежать проблем с логированием

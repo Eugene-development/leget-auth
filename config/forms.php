@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'context_secret' => env('FORM_CONTEXT_SECRET'),
     'recipient' => env('ADMIN_EMAIL', 'info@leget.ru'),
     // Optional server-only override, useful on staging. Never accepted from a form.
     'recipient_override' => env('FORM_RECIPIENT_OVERRIDE'),

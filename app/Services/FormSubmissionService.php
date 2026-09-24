@@ -18,6 +18,9 @@ final class FormSubmissionService
     /** Persist the outbox and its attachments before attempting any email. */
     public function accept(array $data, Request $request): object
     {
+        $site = app(FormSiteContext::class)->resolve($request);
+        $channel = $request->attributes->get('crm_channel', 'online');
+        $actor = $request->attributes->get('crm_actor');
         $files = [];
         foreach (['passport_main', 'passport_registration', 'client_photo'] as $field) {
             if (($data[$field] ?? null) instanceof UploadedFile) {
@@ -32,6 +35,9 @@ final class FormSubmissionService
         unset($data['submission_key']);
         ksort($data);
         $hashData = $data;
+        if ($site) $hashData['_license_id'] = $site->id;
+        if ($actor) $hashData['_actor_id'] = $actor;
+        if ($channel !== 'online') $hashData['_channel'] = $channel;
         foreach ($files as $field => $file) {
             $hashData['file:'.$field] = hash_file('sha256', $file->getRealPath());
         }
@@ -52,12 +58,13 @@ final class FormSubmissionService
                 }
             }
 
-            return DB::transaction(function () use ($data, $request, $key, $hash, $id, $files, $stored) {
+            return DB::transaction(function () use ($data, $request, $key, $hash, $id, $files, $stored, $site, $channel, $actor) {
                 $source = $data['source_url'] ?? null;
                 $domain = strtolower(preg_replace('/^www\./i', '', parse_url($source ?? '', PHP_URL_HOST) ?: ''));
+                if ($site) $domain = $site->domain;
                 $recipient = config('forms.recipient_override') ?: config('forms.recipient');
                 if (! config('forms.recipient_override') && $domain) {
-                    $owner = DB::table('licenses')->join('users', 'users.id', '=', 'licenses.user_id')->where('licenses.domain', $domain)->value('users.email');
+                    $owner = $site ? DB::table('users')->where('id', $site->user_id)->value('email') : DB::table('licenses')->join('users', 'users.id', '=', 'licenses.user_id')->where('licenses.domain', $domain)->value('users.email');
                     if ($owner) {
                         $recipient = $owner;
                     }
@@ -73,6 +80,7 @@ final class FormSubmissionService
                     foreach (['service_type', 'name', 'phone', 'message', 'source_url', 'city'] as $field) {
                         $query->where($field, $data[$field] ?? null);
                     }
+                    $query->where('license_id', $site?->id);
                     $legacy = $query->lockForUpdate()->first();
                     if ($legacy) {
                         $id = $legacy->id;
@@ -83,6 +91,7 @@ final class FormSubmissionService
                     $details['dimensions'] = array_values($details['dimensions']);
                 }
                 $row = [
+                    'license_id' => $site?->id, 'channel' => $channel, 'created_by' => $actor,
                     'id' => $id, 'submission_key' => $key, 'payload_hash' => $hash,
                     'service_type' => $type, 'form_id' => $data['form_id'] ?? $type,
                     'name' => $data['name'] ?? '', 'phone' => $data['phone'] ?? '',
@@ -109,7 +118,7 @@ final class FormSubmissionService
                         'created_at' => now(), 'updated_at' => now(),
                     ]);
                 }
-                if (in_array($type, config('forms.conversion_types'), true) && ! DB::table('conversions')->where('service_request_id', $id)->exists()) {
+                if ($channel === 'online' && in_array($type, config('forms.conversion_types'), true) && ! DB::table('conversions')->where('service_request_id', $id)->exists()) {
                     DB::table('conversions')->insert([
                         'id' => (string) Str::ulid(), 'channel' => 'online', 'type' => $type,
                         'name' => $row['name'], 'contact' => $row['phone'] ?: $row['email'],

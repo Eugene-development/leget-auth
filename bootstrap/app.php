@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->prependToPriorityList(\Illuminate\Routing\Middleware\ThrottleRequests::class, \App\Http\Middleware\ResolveFormSiteContext::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Отказ от `can:` — в общем для проекта виде {success, message}.

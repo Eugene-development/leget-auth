@@ -61,6 +61,7 @@ class NotificationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) throw $e;
             Log::error('LEGET: Contact form notification error', [
                 'error_type' => class_basename($e),
             ]);
@@ -144,6 +145,7 @@ class NotificationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) throw $e;
             Log::error('LEGET: Service request notification error', [
                 'error_type' => class_basename($e),
             ]);

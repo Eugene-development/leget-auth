@@ -25,7 +25,7 @@ class PartnershipNotificationTest extends FormTestCase
                 && $data['company'] === 'Фабрика'
                 && $data['client_name'] === 'Анна'
                 && $data['phone'] === null
-                && $data['partnership_status'] === 'Вы фабрика или поставщик';
+                && $data['partnership_status'] === 'Вы поставщик';
         });
         $this->postJson('/api/notify/service-request', $this->supplier(['email' => 'partner@example.com']))
             ->assertOk()->assertJson(['success' => true]);

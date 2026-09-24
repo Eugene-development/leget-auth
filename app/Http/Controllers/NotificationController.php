@@ -80,6 +80,7 @@ class NotificationController extends Controller
     public function sendServiceRequestNotification(Request $request)
     {
         try {
+            $isGlass = $request->input('service_type') === 'glass-mirrors';
             $isPartnership = $request->input('service_type') === 'partnership';
             $isSupplier = $isPartnership && in_array($request->input('partnership_status'), ['manufacturer', 'supplier'], true);
             $isInstallment = $request->input('service_type') === 'installment';
@@ -89,6 +90,7 @@ class NotificationController extends Controller
             $isCountertopEstimate = $request->input('service_type') === 'countertop-estimate';
             $isSiteConsultation = $request->input('form_id') === 'promo1-contacts-site-consultation';
             $phoneRule = match (true) {
+                $isGlass => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
                 $isContact => 'nullable|required_without:email|string|max:50',
                 $isSupplier => 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/',

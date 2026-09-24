@@ -89,6 +89,7 @@ class CatalogServiceFormsTest extends FormTestCase
         $cases['countertop'] = ['countertop-estimate', 'promo1-countertop-estimate', '/stoleshnica'];
         $cases['appliances'] = ['appliance-selection', 'promo1-appliance-selection', '/bytovaya-tehnika'];
         $cases['plumbing'] = ['plumbing-selection', 'promo1-plumbing-selection', '/santehnika'];
+        $cases['glass'] = ['glass-mirrors', 'promo1-glass-mirrors', '/steklo-i-zerkala'];
 
         return $cases;
     }

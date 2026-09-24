@@ -8,6 +8,7 @@ return [
     'attachment_disk' => env('FORM_ATTACHMENT_DISK', 'yandex'),
     'max_attempts' => 8,
     'titles' => [
+        'promo1-glass-mirrors' => 'Стекло и Зеркала — заявка',
         'platform-footer-subscription' => 'Будь в курсе событий',
         'promo1-footer-subscription' => 'Подписка на новости',
         'promo1-contact' => 'Контакты', 'promo2-contact' => 'Контакты',
@@ -21,6 +22,7 @@ return [
         'promo1-contacts-site-consultation' => 'Консультация на объекте',
     ],
     'types' => [
+        'glass-mirrors' => 'Стекло и Зеркала',
         'consultation' => 'Консультация',
         'design-project' => 'Дизайн-проект',
         'furniture-project' => 'Проектирование мебели',
@@ -39,5 +41,5 @@ return [
         'subscription' => 'Подписка',
         'partner-application' => 'Заявка партнёра платформы',
     ],
-    'conversion_types' => ['consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact'],
+    'conversion_types' => ['glass-mirrors', 'consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact'],
 ];

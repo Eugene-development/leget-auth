@@ -45,7 +45,7 @@ return [
     |
     */
     'smartcaptcha' => [
-        'server_url' => env('SMARTCAPTCHA_SERVER_URL', 'https://smartcaptcha.yandexcloud.net/validate'),
+        'server_url' => env('SMARTCAPTCHA_SERVER_URL', 'https://smartcaptcha.cloud.yandex.ru/validate'),
         'secret' => env('SMARTCAPTCHA_SECRET'),
     ],
 

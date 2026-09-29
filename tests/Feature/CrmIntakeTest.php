@@ -53,18 +53,12 @@ class CrmIntakeTest extends FormTestCase
         $this->assertDatabaseCount('service_requests', 1);
     }
 
-    public function test_access_application_does_not_grant_role_and_retry_is_durable(): void
+    public function test_public_manager_application_is_disabled(): void
     {
-        $this->actingAs($this->manager, 'api');
-        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('offline'));
-        $p = ['submission_key' => (string) Str::uuid()];
-        $a = $this->postJson('/api/crm/sites/'.$this->site.'/apply', $p)->assertStatus(202);
-        $this->postJson('/api/crm/sites/'.$this->site.'/apply', $p)->assertStatus(202)->assertJsonPath('id', $a->json('id'));
+        $this->actingAs($this->manager, 'api')->postJson('/api/crm/sites/'.$this->site.'/apply', ['submission_key' => (string) Str::uuid()])->assertNotFound();
+        $this->assertDatabaseCount('crm_memberships', 0);
+        $this->assertDatabaseCount('service_requests', 0);
         $this->assertSame(Role::Client, $this->manager->fresh()->role);
-        $this->assertDatabaseHas('crm_memberships', ['user_id' => $this->manager->id, 'license_id' => $this->site, 'status' => 'pending']);
-        $this->assertDatabaseCount('crm_memberships', 1);
-        $this->assertDatabaseCount('service_requests', 1);
-        $this->postJson('/api/crm/sites/'.$this->site.'/offline', ['submission_key' => (string) Str::uuid()])->assertForbidden();
     }
 
     public function test_offline_saves_once_survives_smtp_and_revoked_members_cannot_submit(): void
@@ -87,7 +81,7 @@ class CrmIntakeTest extends FormTestCase
         $this->manager->forceFill(['role' => Role::Partner])->save();
         $this->actingAs($this->manager, 'api');
         Mail::shouldReceive('send')->never();
-        $this->postJson('/api/crm/sites/'.$this->site.'/apply', ['submission_key' => (string) Str::uuid()])->assertConflict();
+        $this->postJson('/api/crm/sites/'.$this->site.'/apply', ['submission_key' => (string) Str::uuid()])->assertNotFound();
         $this->postJson('/api/notify/service-request', ['service_type' => 'manager-access', 'name' => 'Test', 'phone' => '12345678'])->assertUnprocessable();
         $this->assertSame(Role::Partner, $this->manager->fresh()->role);
     }

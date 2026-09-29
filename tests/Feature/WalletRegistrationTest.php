@@ -34,7 +34,7 @@ class WalletRegistrationTest extends TestCase
         JWTAuth::shouldReceive('fromUser')->once()->andReturn('audit-token');
         JWTAuth::shouldReceive('factory->getTTL')->once()->andReturn(60);
         $response = $this->postJson('/api/auth/register', ['name' => 'Audit', 'email' => 'audit@example.test', 'password' => 'test-password-123', 'password_confirmation' => 'test-password-123']);
-        $response->assertCreated()->assertJsonPath('success', true);
+        $response->assertCreated()->assertJsonPath('success', true)->assertJsonPath('user.role', 'admin');
         $this->assertSame(1, User::count());
         $this->assertSame(1, DB::table('wallets')->count());
         $this->assertEquals(0, DB::table('wallets')->value('balance'));

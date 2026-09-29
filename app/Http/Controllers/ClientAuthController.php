@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\SmartCaptchaService;
@@ -83,7 +82,7 @@ final class ClientAuthController extends Controller
                 ]);
 
                 if ($request->routeIs('university.register')) {
-                    $user->forceFill(['role' => Role::Student])->save();
+                    $user->forceFill(['university_enrolled_at' => now()])->save();
                 }
 
                 return $user;

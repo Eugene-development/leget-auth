@@ -30,6 +30,7 @@ final class UserProfile
             'region' => $user->region,
             'email_verified' => $user->hasVerifiedEmail(),
             'role' => $this->roles->of($user),
+            'roles' => $user->roleNames(),
             'created_at' => $user->created_at?->toIso8601String(),
         ];
     }

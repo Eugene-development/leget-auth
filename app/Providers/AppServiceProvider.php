@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Enums\Role;
 use App\Models\User;
+use App\Services\UniversityVerificationIp;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +43,7 @@ class AppServiceProvider extends ServiceProvider
     private function registerRoleGates(): void
     {
         foreach (Role::abilityNames() as $ability) {
-            Gate::define($ability, static fn (User $user): bool => ($user->role ?? Role::Client)->can($ability));
+            Gate::define($ability, static fn (User $user): bool => $user->hasAbility($ability));
         }
     }
 
@@ -57,6 +58,13 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
+        RateLimiter::for('university-verification', function (Request $request): array {
+            $ip = app(UniversityVerificationIp::class)->resolve($request);
+            $key = 'university-verification:'.$ip;
+
+            return [Limit::perMinute(10)->by($key.':minute'), Limit::perHour(100)->by($key.':hour')];
+        });
+
         RateLimiter::for('client-auth', function (Request $request): Limit {
             $email = strtolower(trim((string) $request->input('email')));
 

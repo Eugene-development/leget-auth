@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\PartnerStatus;
 use App\Enums\PartnerType;
+use App\Enums\Role;
 use App\Models\PartnerProfile;
 use App\Models\User;
 use App\Services\FormMailDelivery;
@@ -45,14 +46,15 @@ final class PartnerApplicationController extends Controller
 
         // Сотрудник платформы не может быть её партнёром: это разные стороны
         // сделки, и совмещение сломало бы смысл разбора заявок.
-        if ($roles->isSuperadmin($user)) {
+        if (! in_array($user->role, [Role::Client, Role::Student, Role::Partner], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Сотрудник платформы не может подать заявку на партнёрство.',
+                'message' => 'Для партнёрства используйте отдельный клиентский аккаунт.',
             ], Response::HTTP_FORBIDDEN);
         }
 
         $validated = $request->validate([
+            'submission_key' => 'required|uuid',
             'partner_type' => ['required', 'string', Rule::in(PartnerType::values())],
             'company' => 'nullable|string|max:255',
             'inn' => 'nullable|string|max:12',
@@ -61,7 +63,12 @@ final class PartnerApplicationController extends Controller
             'comment' => 'nullable|string|max:2000',
         ]);
 
-        [$profile, $submission] = DB::transaction(function () use ($user, $validated, $request) {
+        $submissionKey = $validated['submission_key'];
+        unset($validated['submission_key']);
+
+        [$profile, $submission] = DB::transaction(function () use ($user, $validated, $request, $submissionKey) {
+            $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($user->role, [Role::Client, Role::Student, Role::Partner], true), 403);
             $profile = $user->partnerProfile;
 
             if ($profile instanceof PartnerProfile) {
@@ -84,7 +91,7 @@ final class PartnerApplicationController extends Controller
 
             $submission = app(FormSubmissionService::class)->accept([
                 'service_type' => 'partner-application', 'form_id' => 'platform-partner-application',
-                'submission_key' => (string) Uuid::uuid5(Uuid::NAMESPACE_URL, $user->id.':'.json_encode($validated)),
+                'submission_key' => (string) Uuid::uuid5(Uuid::NAMESPACE_URL, 'partner:'.$user->id.':'.$submissionKey),
                 'name' => $user->name, 'email' => $user->email, 'phone' => $user->phone,
                 'message' => $validated['comment'] ?? null,
                 'partner_profile_id' => $profile->id,
@@ -94,13 +101,18 @@ final class PartnerApplicationController extends Controller
         });
         app(FormMailDelivery::class)->deliver($submission->id);
 
+        $mail = DB::table('service_requests')->where('id', $submission->id)->first();
+
         return response()->json([
             'success' => true,
+            'id' => $submission->id,
+            'status' => $mail->status,
+            'mail_status' => $mail->mail_status,
             'application' => $this->present($profile->fresh()),
             'message' => $profile->status === PartnerStatus::Approved
                 ? 'Данные партнёра обновлены.'
                 : 'Заявка принята. Мы свяжемся с вами после рассмотрения.',
-        ], Response::HTTP_CREATED);
+        ], $mail->mail_status === 'sent' ? 200 : 202);
     }
 
     /**

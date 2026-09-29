@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -14,9 +15,9 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
  * @method bool hasVerifiedEmail()
  * @method void markEmailAsVerified()
  */
-class User extends Authenticatable implements MustVerifyEmail, JWTSubject
+class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -65,14 +66,37 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
     /**
      * Get the attributes that should be cast.
      */
+    public function roleNames(): array
+    {
+        $role = $this->role ?? Role::Client;
+        $roles = $role === Role::Student ? ['client', 'student'] : [$role->value];
+        if ($this->university_enrolled_at !== null && ! in_array('student', $roles, true)) {
+            $roles[] = 'student';
+        }
+
+        return $roles;
+    }
+
+    public function hasAbility(string $ability): bool
+    {
+        foreach ($this->roleNames() as $role) {
+            if (Role::from($role)->can($ability)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
+            'university_enrolled_at' => 'datetime',
+            'password' => 'hashed',
             // Каст в enum: неизвестное значение в колонке роняет гидрацию
             // ValueError'ом, а не тихо превращается в «роль, которой нет».
-            'role'              => Role::class,
+            'role' => Role::class,
         ];
     }
 
@@ -100,7 +124,7 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
      */
     public function getEmailVerifiedAttribute(): bool
     {
-        return !is_null($this->email_verified_at);
+        return ! is_null($this->email_verified_at);
     }
 
     /**
@@ -117,14 +141,15 @@ class User extends Authenticatable implements MustVerifyEmail, JWTSubject
     public function getJWTCustomClaims(): array
     {
         return [
-            'email'          => $this->email,
-            'name'           => $this->name,
+            'email' => $this->email,
+            'name' => $this->name,
             'email_verified' => $this->email_verified,
             // Claim — снимок на момент выдачи: после смены роли он врёт до
             // истечения TTL. Поэтому им можно рисовать шапку в SSR без запроса
             // к auth-сервису, но нельзя решать вопрос доступа — это делает
             // проверка роли в БД (`can:` и /api/session/me).
-            'role'           => ($this->role ?? Role::Client)->value,
+            'role' => ($this->role ?? Role::Client)->value,
+            'roles' => $this->roleNames(),
         ];
     }
 }

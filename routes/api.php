@@ -3,9 +3,12 @@
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientAuthController;
+use App\Http\Controllers\Crm\CrmIntakeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\UniversityController;
+use App\Http\Middleware\ResolveFormSiteContext;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -44,7 +47,7 @@ Route::prefix('client')->group(function () {
 // после разбора. Способность здесь заперла бы дверь ровно тем, ради кого
 // маршрут существует.
 Route::prefix('partner')->middleware('auth:api')->group(function () {
-    Route::post('/apply', [PartnerApplicationController::class, 'apply'])->middleware('throttle:10,1');
+    Route::post('/apply', [PartnerApplicationController::class, 'apply'])->middleware([ResolveFormSiteContext::class, 'throttle:10,1']);
     Route::get('/application', [PartnerApplicationController::class, 'mine']);
 });
 
@@ -65,26 +68,30 @@ Route::prefix('auth')->middleware('auth:api')->group(function () {
 
 // ─── Contact form notification (public, throttled) ───────────────────────────
 Route::post('/notify/contact', [NotificationController::class, 'sendContactNotification'])
-    ->middleware([\App\Http\Middleware\ResolveFormSiteContext::class, 'throttle:10,1']);
+    ->middleware([ResolveFormSiteContext::class, 'throttle:10,1']);
 
 Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
-    ->middleware([\App\Http\Middleware\ResolveFormSiteContext::class, 'throttle:10,1']);
+    ->middleware([ResolveFormSiteContext::class, 'throttle:10,1']);
 
 // University: public program, protected educational content and server-side grading.
 Route::post('/university/register', [ClientAuthController::class, 'register'])
     ->name('university.register')->middleware('throttle:client-auth');
-Route::get('/university/catalog', [\App\Http\Controllers\UniversityController::class, 'catalog']);
-Route::post('/university/enroll', [\App\Http\Controllers\UniversityController::class, 'enroll'])
+Route::get('/university/catalog', [UniversityController::class, 'catalog']);
+Route::post('/university/verify-certificate', [UniversityController::class, 'verifyCertificate'])
+    ->middleware('throttle:university-verification');
+Route::post('/university/enroll', [UniversityController::class, 'enroll'])
     ->middleware(['auth:api', 'throttle:10,1']);
 Route::prefix('university')->middleware(['auth:api', 'can:university.study'])->group(function () {
-    Route::get('/dashboard', [\App\Http\Controllers\UniversityController::class, 'dashboard']);
-    Route::get('/courses/{slug}', [\App\Http\Controllers\UniversityController::class, 'course']);
-    Route::post('/courses/{slug}/assess', [\App\Http\Controllers\UniversityController::class, 'assess'])->middleware('throttle:30,1');
-    Route::get('/certificates/{id}', [\App\Http\Controllers\UniversityController::class, 'certificate']);
+    Route::get('/interviews', [UniversityController::class, 'interviews']);
+    Route::get('/interviews/{slug}', [UniversityController::class, 'interviews']);
+    Route::get('/resources', [UniversityController::class, 'resources']);
+    Route::get('/dashboard', [UniversityController::class, 'dashboard']);
+    Route::get('/courses/{slug}', [UniversityController::class, 'course']);
+    Route::post('/courses/{slug}/assess', [UniversityController::class, 'assess'])->middleware('throttle:30,1');
+    Route::get('/certificates/{id}', [UniversityController::class, 'certificate']);
 });
 
 Route::prefix('crm/sites/{site}')->middleware(['auth:api', 'throttle:60,1'])->group(function () {
-    Route::post('/offline', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'offline']);
-    Route::post('/apply', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'apply'])->middleware('throttle:10,1');
-    Route::get('/attachments/{id}', [\App\Http\Controllers\Crm\CrmIntakeController::class, 'attachment']);
+    Route::post('/offline', [CrmIntakeController::class, 'offline']);
+    Route::get('/attachments/{id}', [CrmIntakeController::class, 'attachment']);
 });

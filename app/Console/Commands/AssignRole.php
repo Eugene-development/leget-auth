@@ -22,10 +22,10 @@ final class AssignRole extends Command
 {
     protected $signature = 'roles:assign
         {email : Email пользователя}
-        {role : Роль (superadmin, client, partner, curator)}
+        {role : Роль (superadmin, admin, client, student, partner, curator)}
         {--force : Снять роль superadmin с последнего суперадминистратора}';
 
-    protected $description = 'Назначить пользователю роль (superadmin, client, partner, curator)';
+    protected $description = 'Назначить пользователю роль (superadmin, admin, client, student, partner, curator)';
 
     public function handle(): int
     {
@@ -47,6 +47,23 @@ final class AssignRole extends Command
             $this->error("Пользователь {$email} не найден. Роль назначается существующему аккаунту.");
 
             return self::FAILURE;
+        }
+
+        if ($role === Role::Manager) {
+            $this->error('Менеджер назначается администратором на конкретный сайт через CRM. Клиентский аккаунт не преобразуется.');
+
+            return self::FAILURE;
+        }
+        if ($role === Role::Student) {
+            if (! in_array($user->role, [Role::Client, Role::Student], true)) {
+                $this->error('Для обучения используйте клиентский аккаунт.');
+
+                return self::FAILURE;
+            }
+            $user->forceFill(['university_enrolled_at' => $user->university_enrolled_at ?? now()])->save();
+            $this->info('Доступ студента добавлен; кабинет клиента сохранён.');
+
+            return self::SUCCESS;
         }
 
         $before = $user->role ?? Role::Client;

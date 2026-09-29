@@ -41,6 +41,10 @@ final class SyncAdminRoles extends Command
             return self::FAILURE;
         }
 
+        // Preserve student-only accounts before the bulk primary-role assignment.
+        User::whereIn(DB::raw('LOWER(email)'), $emails)->where('role', Role::Student->value)
+            ->whereNull('university_enrolled_at')->update(['university_enrolled_at' => now()]);
+
         $promoted = User::query()
             ->whereIn(DB::raw('LOWER(email)'), $emails)
             ->where('role', '!=', Role::Superadmin->value)

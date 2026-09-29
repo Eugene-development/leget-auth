@@ -69,12 +69,22 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function roleNames(): array
     {
         $role = $this->role ?? Role::Client;
-        $roles = $role === Role::Student ? ['client', 'student'] : [$role->value];
+        $roles = [$role->value];
         if ($this->university_enrolled_at !== null && ! in_array('student', $roles, true)) {
             $roles[] = 'student';
         }
 
         return $roles;
+    }
+
+    /** Preserve education when an authorized operation assigns the non-student role. */
+    public function setPrimaryRole(Role $role): self
+    {
+        if ($this->role === Role::Student && $role !== Role::Student) {
+            $this->forceFill(['university_enrolled_at' => $this->university_enrolled_at ?? now()]);
+        }
+
+        return $this->forceFill(['role' => $role]);
     }
 
     public function hasAbility(string $ability): bool

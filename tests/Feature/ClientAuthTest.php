@@ -59,7 +59,7 @@ class ClientAuthTest extends TestCase
             'email' => 'admin@example.test',
             'password' => 'secret-password',
             'password_confirmation' => 'secret-password',
-        ])->assertForbidden();
+        ])->assertConflict()->assertJsonPath('code', 'account_exists')->assertJsonMissingPath('role')->assertJsonMissingPath('user');
 
         $this->assertDatabaseHas('users', [
             'email' => 'admin@example.test',

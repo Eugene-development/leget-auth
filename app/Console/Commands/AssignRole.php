@@ -55,13 +55,8 @@ final class AssignRole extends Command
             return self::FAILURE;
         }
         if ($role === Role::Student) {
-            if (! in_array($user->role, [Role::Client, Role::Student], true)) {
-                $this->error('Для обучения используйте клиентский аккаунт.');
-
-                return self::FAILURE;
-            }
             $user->forceFill(['university_enrolled_at' => $user->university_enrolled_at ?? now()])->save();
-            $this->info('Доступ студента добавлен; кабинет клиента сохранён.');
+            $this->info('Учебный доступ добавлен; текущая роль сохранена.');
 
             return self::SUCCESS;
         }
@@ -82,7 +77,7 @@ final class AssignRole extends Command
             return self::FAILURE;
         }
 
-        $user->forceFill(['role' => $role])->save();
+        $user->setPrimaryRole($role)->save();
 
         $this->info("{$email}: {$before->value} → {$role->value}");
         $this->line('Сейчас в базе: '.$this->distribution());

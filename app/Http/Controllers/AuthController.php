@@ -43,6 +43,13 @@ class AuthController extends Controller
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+            $request->validate(['email' => 'required|string|email|max:255']);
+            if (User::whereRaw('LOWER(email) = ?', [$request->input('email')])->exists()) {
+                return response()->json(['success' => false, 'code' => 'account_exists',
+                    'message' => 'Аккаунт уже существует. Можно использовать его после входа.'], 409);
+            }
+
             $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
@@ -144,6 +151,8 @@ class AuthController extends Controller
             ]);
 
             $credentials = $request->only('email', 'password');
+            $existing = User::whereRaw('LOWER(email) = ?', [strtolower(trim((string) $credentials['email']))])->first();
+            $credentials['email'] = $existing?->email ?? strtolower(trim((string) $credentials['email']));
 
             if (! $token = JWTAuth::attempt($credentials)) {
                 Log::warning('LEGET: Login failed - invalid credentials', ['email' => $request->email]);
@@ -155,7 +164,7 @@ class AuthController extends Controller
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            $user = Auth::user();
+            $user = $existing;
             $ttl = JWTAuth::factory()->getTTL();
 
             Log::info('LEGET: Login successful', ['user_id' => $user->id, 'email' => $user->email]);

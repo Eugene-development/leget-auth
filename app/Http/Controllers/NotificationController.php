@@ -80,6 +80,7 @@ class NotificationController extends Controller
     public function sendServiceRequestNotification(Request $request)
     {
         try {
+            $isLeadCatcher = $request->input('form_id') === 'promo1-lead-catcher';
             $isGlass = $request->input('service_type') === 'glass-mirrors';
             $isPartnership = $request->input('service_type') === 'partnership';
             $isSupplier = $isPartnership && in_array($request->input('partnership_status'), ['manufacturer', 'supplier'], true);
@@ -90,6 +91,7 @@ class NotificationController extends Controller
             $isCountertopEstimate = $request->input('service_type') === 'countertop-estimate';
             $isSiteConsultation = $request->input('form_id') === 'promo1-contacts-site-consultation';
             $phoneRule = match (true) {
+                $isLeadCatcher => 'required|string|regex:/^\+7[0-9]{10}$/',
                 $isGlass => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
                 $isContact => 'nullable|required_without:email|string|max:50',
@@ -105,8 +107,9 @@ class NotificationController extends Controller
 
             $validated = $request->validate([
                 'service_type' => ['required', Rule::in(array_diff(array_keys(config('forms.types')), ['partner-application']))],
-                'name' => $request->input('service_type') === 'subscription' ? 'nullable|string|max:255' : 'required|string|max:255',
+                'name' => ($isSubscription || $isLeadCatcher) ? 'nullable|string|max:255' : 'required|string|max:255',
                 'phone' => $phoneRule,
+                'consent' => $isLeadCatcher ? 'required|accepted' : 'prohibited',
                 'email' => $emailRule,
                 'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
                 'partnership_status' => 'required_if:form_id,promo1-partnership|nullable|in:referral,manufacturer,supplier,other',
@@ -129,7 +132,7 @@ class NotificationController extends Controller
                 'photos.*' => $isWarranty ? 'file|mimes:jpg,jpeg,png,webp|max:5120' : 'nullable',
             ]);
 
-            if ($isSiteConsultation && $validated['service_type'] !== 'consultation') {
+            if (($isSiteConsultation || $isLeadCatcher) && $validated['service_type'] !== 'consultation') {
                 throw ValidationException::withMessages(['service_type' => 'Неверный тип заявки.']);
             }
 

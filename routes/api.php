@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountRoleController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientAuthController;
@@ -72,6 +73,10 @@ Route::post('/notify/contact', [NotificationController::class, 'sendContactNotif
 
 Route::post('/notify/service-request', [NotificationController::class, 'sendServiceRequestNotification'])
     ->middleware([ResolveFormSiteContext::class, 'throttle:10,1']);
+
+Route::post('/client/activate', [AccountRoleController::class, 'client'])->middleware(['auth:api', 'throttle:10,1']);
+Route::post('/auth/activate-owner', [AccountRoleController::class, 'owner'])->middleware(['auth:api', 'throttle:10,1']);
+Route::post('/university/login', [ClientAuthController::class, 'login'])->name('university.login')->middleware('throttle:client-auth');
 
 // University: public program, protected educational content and server-side grading.
 Route::post('/university/register', [ClientAuthController::class, 'register'])

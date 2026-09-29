@@ -8,6 +8,7 @@ return [
     'attachment_disk' => env('FORM_ATTACHMENT_DISK', 'yandex'),
     'max_attempts' => 8,
     'titles' => [
+        'promo1-lead-catcher' => 'Получите бесплатную консультацию',
         'promo1-glass-mirrors' => 'Стекло и Зеркала — заявка',
         'platform-footer-subscription' => 'Будь в курсе событий',
         'promo1-footer-subscription' => 'Подписка на новости',

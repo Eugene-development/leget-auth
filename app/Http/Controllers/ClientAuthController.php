@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\SmartCaptchaService;
@@ -45,20 +46,11 @@ final class ClientAuthController extends Controller
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
-            // Проверку роли делаем ДО валидации — так же, как в login() до
-            // attempt(). Раньше порядок был обратный и это работало: роль жила
-            // в allowlist, пользователя с таким адресом могло не быть вовсе.
-            // Теперь админ — строка в users, его адрес занят, и правило
-            // `unique:users` ответило бы «email уже занят» вместо «это адрес
-            // суперадминистратора» — человек не понял бы, что входить надо в /admin.
-            $submittedEmail = $request->input('email');
-
-            if (is_string($submittedEmail) && $roles->isSuperadminEmail($submittedEmail)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Этот адрес принадлежит суперадминистратору платформы.',
-                    'errors' => ['email' => ['Этот адрес принадлежит суперадминистратору платформы.']],
-                ], Response::HTTP_FORBIDDEN);
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+            $request->validate(['email' => 'required|string|email|max:255']);
+            if (User::whereRaw('LOWER(email) = ?', [$request->input('email')])->exists()) {
+                return response()->json(['success' => false, 'code' => 'account_exists',
+                    'message' => 'Аккаунт уже существует. Войдите с прежним паролем, чтобы использовать его.'], 409);
             }
 
             $validated = $request->validate([
@@ -82,7 +74,7 @@ final class ClientAuthController extends Controller
                 ]);
 
                 if ($request->routeIs('university.register')) {
-                    $user->forceFill(['university_enrolled_at' => now()])->save();
+                    $user->forceFill(['role' => Role::Student, 'university_enrolled_at' => now()])->save();
                 }
 
                 return $user;
@@ -157,16 +149,10 @@ final class ClientAuthController extends Controller
                 'password' => $validated['password'],
             ];
 
-            // Проверку роли делаем ДО attempt: админу не выдаётся клиентский
-            // токен даже при верном пароле.
-            if ($roles->isSuperadminEmail($credentials['email'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Суперадминистратор входит через панель /admin.',
-                    'role' => UserRole::SUPERADMIN,
-                ], Response::HTTP_FORBIDDEN);
+            $existing = User::whereRaw('LOWER(email) = ?', [$credentials['email']])->first();
+            if ($existing) {
+                $credentials['email'] = $existing->email;
             }
-
             $token = JWTAuth::attempt($credentials);
             // attempt() уже проверил пароль; пользователя достаём явно, не
             // полагаясь на guard по умолчанию (он может быть web).
@@ -178,6 +164,10 @@ final class ClientAuthController extends Controller
                     'message' => 'Неверный email или пароль.',
                     'errors' => ['email' => ['Неверный email или пароль.']],
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            if (! $request->routeIs('university.login') && $roles->isSuperadmin($user)) {
+                return response()->json(['success' => false, 'message' => 'Суперадминистратор входит через панель /admin или форму университета.'], 403);
             }
 
             return response()->json([

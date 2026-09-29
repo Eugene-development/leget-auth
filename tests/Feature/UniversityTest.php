@@ -30,8 +30,8 @@ class UniversityTest extends TestCase
     public function test_registration_assigns_student_but_never_trusts_requested_role(): void
     {
         $this->postJson('/api/university/register', ['name' => 'Студент', 'email' => 'student@example.test', 'password' => 'secret-password', 'password_confirmation' => 'secret-password', 'role' => 'superadmin'])
-            ->assertCreated()->assertJsonPath('user.role', 'client')->assertJsonPath('user.roles', ['client', 'student']);
-        $this->assertDatabaseHas('users', ['email' => 'student@example.test', 'role' => 'client']);
+            ->assertCreated()->assertJsonPath('user.role', 'student')->assertJsonPath('user.roles', ['student']);
+        $this->assertDatabaseHas('users', ['email' => 'student@example.test', 'role' => 'student']);
     }
 
     public function test_catalog_has_no_answers_or_articles_and_learning_is_protected(): void
@@ -86,7 +86,7 @@ class UniversityTest extends TestCase
     public function test_enrollment_does_not_overwrite_partner_or_staff_role(): void
     {
         $user = $this->student(Role::Partner);
-        $this->actingAs($user, 'api')->postJson('/api/university/enroll')->assertForbidden();
+        $this->actingAs($user, 'api')->postJson('/api/university/enroll')->assertOk();
         $this->assertSame(Role::Partner, $user->fresh()->role);
         $user = $this->student(Role::Client);
         $this->actingAs($user, 'api')->postJson('/api/university/enroll')->assertOk();

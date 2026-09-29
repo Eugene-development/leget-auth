@@ -37,6 +37,9 @@ final class FormMailDelivery
             $values = ['referral' => 'Вы приводите клиентов', 'supplier' => 'Фабрика или поставщик', 'manufacturer' => 'Производитель', 'designer' => 'Дизайнер', 'assembler' => 'Сборщик'];
             $partnershipLabels = ['referral' => 'Вы приводите клиентов', 'manufacturer' => 'Вы фабрика изготовитель', 'supplier' => 'Вы поставщик', 'other' => 'Иное'];
             $displayDetails = [];
+            if (! empty($details['consent'])) {
+                $displayDetails['Согласие на обработку персональных данных'] = 'Получено';
+            }
             foreach ($labels as $key => $label) {
                 if (! empty($details[$key])) {
                     $displayDetails[$label] = ($key === 'partnership_status' ? $partnershipLabels[$details[$key]] ?? null : $values[$details[$key]] ?? null) ?? $details[$key];

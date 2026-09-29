@@ -51,10 +51,9 @@ final class UniversityController extends Controller
 
     public function enroll(Request $request)
     {
-        // Enrollment adds educational access; the client role and its data remain intact.
+        // Any authenticated role may add education without replacing its existing role.
         $user = DB::transaction(function () use ($request) {
             $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
-            abort_unless($user->hasAbility('university.study') || in_array($user->role, [Role::Client, Role::Student], true), 403, 'Для обучения используйте отдельный аккаунт студента.');
             $user->forceFill(['university_enrolled_at' => $user->university_enrolled_at ?? now()])->save();
 
             return $user;

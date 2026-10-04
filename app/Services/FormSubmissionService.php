@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Growth\GrowthFormDetails;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -35,9 +36,15 @@ final class FormSubmissionService
         unset($data['submission_key']);
         ksort($data);
         $hashData = $data;
-        if ($site) $hashData['_license_id'] = $site->id;
-        if ($actor) $hashData['_actor_id'] = $actor;
-        if ($channel !== 'online') $hashData['_channel'] = $channel;
+        if ($site) {
+            $hashData['_license_id'] = $site->id;
+        }
+        if ($actor) {
+            $hashData['_actor_id'] = $actor;
+        }
+        if ($channel !== 'online') {
+            $hashData['_channel'] = $channel;
+        }
         foreach ($files as $field => $file) {
             $hashData['file:'.$field] = hash_file('sha256', $file->getRealPath());
         }
@@ -61,7 +68,9 @@ final class FormSubmissionService
             return DB::transaction(function () use ($data, $request, $key, $hash, $id, $files, $stored, $site, $channel, $actor) {
                 $source = $data['source_url'] ?? null;
                 $domain = strtolower(preg_replace('/^www\./i', '', parse_url($source ?? '', PHP_URL_HOST) ?: ''));
-                if ($site) $domain = $site->domain;
+                if ($site) {
+                    $domain = $site->domain;
+                }
                 $recipient = config('forms.recipient_override') ?: config('forms.recipient');
                 if (! config('forms.recipient_override') && $domain) {
                     $owner = $site ? DB::table('users')->where('id', $site->user_id)->value('email') : DB::table('licenses')->join('users', 'users.id', '=', 'licenses.user_id')->where('licenses.domain', $domain)->value('users.email');
@@ -86,7 +95,8 @@ final class FormSubmissionService
                         $id = $legacy->id;
                     }
                 }
-                $details = array_intersect_key($data, array_flip(['consent', 'form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions', 'object_address', 'visit_time']));
+                $details = array_intersect_key($data, array_flip(['consent', 'form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions', 'object_address', 'visit_time', 'order_id', 'order_title']));
+                $details += app(GrowthFormDetails::class)->resolve($data, $site);
                 if (isset($details['dimensions']) && is_array($details['dimensions'])) {
                     $details['dimensions'] = array_values($details['dimensions']);
                 }

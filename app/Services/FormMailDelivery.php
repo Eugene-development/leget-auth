@@ -52,6 +52,24 @@ final class FormMailDelivery
                     array_keys($details['dimensions'])
                 ));
             }
+            if (! empty($details['selection'])) {
+                $selection = $details['selection'];
+                $displayDetails['Подборка'] = $selection['title'];
+                $displayDetails['Количество проектов и материалов'] = (string) count($selection['items']);
+            }
+            if (! empty($details['estimate'])) {
+                $estimate = $details['estimate'];
+                $input = $estimate['inputs'];
+                $layouts = ['straight' => 'Прямая', 'l' => 'Угловая', 'u' => 'П-образная', 'island' => 'С островом'];
+                $displayDetails['Параметры кухни'] = 'Общая длина: '.$input['run_cm'].' см; планировка: '.$layouts[$input['layout']].'; материал: '.$estimate['material_label'].'; единиц техники: '.$input['equipment'];
+                $displayDetails['Предварительный диапазон'] = number_format($estimate['min'], 0, ',', ' ').'–'.number_format($estimate['max'], 0, ',', ' ').' ₽';
+                if (! empty($estimate['note'])) {
+                    $displayDetails['Условия расчёта'] = $estimate['note'];
+                }
+            }
+            if (! empty($details['order_title'])) {
+                $displayDetails['Заказ, указанный клиентом'] = $details['order_title'];
+            }
             $data = [
                 'form_title' => $title, 'display_details' => $displayDetails,
                 'submitted_label' => Carbon::parse($row->created_at, config('app.timezone'))->setTimezone('Europe/Moscow')->locale('ru')->translatedFormat('j F Y, H:i'),

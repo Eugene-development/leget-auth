@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\Role;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\LoginSession;
 use App\Services\SmartCaptchaService;
 use App\Services\UserProfile;
 use App\Services\UserRole;
@@ -127,7 +128,7 @@ final class ClientAuthController extends Controller
         }
     }
 
-    public function login(Request $request, SmartCaptchaService $captcha, UserRole $roles, UserProfile $profiles)
+    public function login(Request $request, SmartCaptchaService $captcha, UserRole $roles, UserProfile $profiles, LoginSession $sessions)
     {
         try {
             if (! $captcha->verify($request->input('captcha_token'), $this->visitorIp($request, $captcha))) {
@@ -142,6 +143,7 @@ final class ClientAuthController extends Controller
                 'email' => 'required|email',
                 'password' => 'required|string',
                 'captcha_token' => 'nullable|string',
+                'remember' => 'sometimes|boolean',
             ]);
 
             $credentials = [
@@ -153,12 +155,12 @@ final class ClientAuthController extends Controller
             if ($existing) {
                 $credentials['email'] = $existing->email;
             }
-            $token = JWTAuth::attempt($credentials);
+            $session = $sessions->attempt($credentials, $request->boolean('remember'));
             // attempt() уже проверил пароль; пользователя достаём явно, не
             // полагаясь на guard по умолчанию (он может быть web).
             $user = User::query()->where('email', $credentials['email'])->first();
 
-            if (! is_string($token) || ! $user instanceof User) {
+            if ($session === false || ! $user instanceof User) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Неверный email или пароль.',
@@ -174,9 +176,8 @@ final class ClientAuthController extends Controller
                 'success' => true,
                 'user' => $profiles->for($user),
                 'role' => $roles->of($user),
-                'token' => $token,
+                ...$session,
                 'token_type' => 'bearer',
-                'expires_in' => JWTAuth::factory()->getTTL() * 60,
                 'message' => 'Вход выполнен успешно.',
             ]);
         } catch (ValidationException $e) {

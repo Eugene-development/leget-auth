@@ -19,7 +19,8 @@ class FormSubmissionTest extends FormTestCase
     public function test_all_public_form_types_are_saved_and_mailed(): void
     {
         $this->withoutMiddleware(ThrottleRequests::class);
-        $types = array_diff(array_keys(config('forms.types')), ['installment', 'partner-application']);
+        // These types require server-owned site context and have their own integration tests.
+        $types = array_diff(array_keys(config('forms.types')), ['installment', 'partner-application', 'selection-estimate', 'kitchen-estimate', 'order-question']);
         Mail::shouldReceive('send')->times(count($types))->withArgs(function ($view, $data, $callback) {
             $this->assertDatabaseHas('service_requests', ['id' => $data['request_id'], 'mail_status' => 'sending']);
 

@@ -31,6 +31,17 @@ return [
 
     'connections' => [
 
+        // Must share the default DB with reset tokens: enqueue commits/rolls back
+        // atomically, and a failed queue never leaves an unmailed fresh token.
+        'password-recovery' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'password-recovery',
+            'retry_after' => 90,
+            'after_commit' => false,
+        ],
+
         'sync' => [
             'driver' => 'sync',
         ],

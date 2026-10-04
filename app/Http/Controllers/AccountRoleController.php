@@ -7,13 +7,15 @@ namespace App\Http\Controllers;
 use App\Enums\Role;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\LoginSession;
 use App\Services\UserProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 final class AccountRoleController extends Controller
 {
+    public function __construct(private readonly LoginSession $sessions) {}
+
     public function client(Request $request, UserProfile $profiles)
     {
         return $this->activate($request, Role::Client, $profiles);
@@ -39,6 +41,6 @@ final class AccountRoleController extends Controller
         }, 3);
 
         return response()->json(['success' => true, 'user' => $profiles->for($user),
-            'token' => JWTAuth::fromUser($user), 'expires_in' => JWTAuth::factory()->getTTL() * 60]);
+            ...$this->sessions->reissue($user, $request->bearerToken())]);
     }
 }

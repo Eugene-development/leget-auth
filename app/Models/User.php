@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -54,6 +55,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'token_version',
     ];
 
     /**
@@ -104,6 +106,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             'email_verified_at' => 'datetime',
             'university_enrolled_at' => 'datetime',
             'password' => 'hashed',
+            'token_version' => 'integer',
             // Каст в enum: неизвестное значение в колонке роняет гидрацию
             // ValueError'ом, а не тихо превращается в «роль, которой нет».
             'role' => Role::class,
@@ -151,6 +154,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function getJWTCustomClaims(): array
     {
         return [
+            'token_version' => (int) $this->token_version,
             'email' => $this->email,
             'name' => $this->name,
             'email_verified' => $this->email_verified,
@@ -161,5 +165,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             'role' => ($this->role ?? Role::Client)->value,
             'roles' => $this->roleNames(),
         ];
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 }

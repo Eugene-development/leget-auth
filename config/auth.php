@@ -44,7 +44,7 @@ return [
         ],
 
         'api' => [
-            'driver'   => 'jwt',
+            'driver'   => 'versioned-jwt',
             'provider' => 'users',
         ],
     ],
@@ -118,5 +118,11 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    'password_reset' => [
+        'frontend_url' => env('FRONTEND_URL', 'https://leget.ru'),
+        // A dedicated transport prevents reset bearer links reaching the log mailer.
+        'mailer' => env('PASSWORD_RESET_MAILER', 'smtp'),
+    ],
 
 ];

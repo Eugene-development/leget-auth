@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class NotificationController extends Controller
 {
@@ -35,6 +36,7 @@ class NotificationController extends Controller
                 'email' => 'required|email|max:255',
                 'phone' => 'nullable|string|max:50',
                 'company' => 'nullable|string|max:255',
+                'attribution' => 'nullable|string|max:2000',
                 'message' => 'required|string|max:5000',
                 'source_url' => 'nullable|url:http,https|max:500',
                 'form_title' => 'nullable|string|max:500',
@@ -61,7 +63,9 @@ class NotificationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
-            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) throw $e;
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
             Log::error('LEGET: Contact form notification error', [
                 'error_type' => class_basename($e),
             ]);
@@ -90,18 +94,21 @@ class NotificationController extends Controller
             $isSubscription = $request->input('service_type') === 'subscription';
             $isCountertopEstimate = $request->input('service_type') === 'countertop-estimate';
             $isSiteConsultation = $request->input('form_id') === 'promo1-contacts-site-consultation';
+            $isSelection = $request->input('service_type') === 'selection-estimate';
+            $isKitchenEstimate = $request->input('service_type') === 'kitchen-estimate';
+            $isOrderQuestion = $request->input('service_type') === 'order-question';
             $phoneRule = match (true) {
                 $isLeadCatcher => 'required|string|regex:/^\+7[0-9]{10}$/',
                 $isGlass => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
-                $isContact => 'nullable|required_without:email|string|max:50',
+                $isContact, $isOrderQuestion => 'nullable|required_without:email|string|max:50',
                 $isSupplier => 'nullable|required_without:email|string|max:50|regex:/^\+?[0-9]{7,15}$/',
                 $isPartnership => 'required|string|max:50|regex:/^\+?[0-9]{7,15}$/',
                 default => 'required|string|max:50',
             };
             $emailRule = match (true) {
                 $isSubscription => 'required|email|max:255',
-                $isContact, $isSupplier => 'nullable|required_without:phone|email|max:255',
+                $isContact, $isSupplier, $isOrderQuestion => 'nullable|required_without:phone|email|max:255',
                 default => 'nullable|email|max:255',
             };
 
@@ -114,12 +121,18 @@ class NotificationController extends Controller
                 'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
                 'partnership_status' => 'required_if:form_id,promo1-partnership|nullable|in:referral,manufacturer,supplier,other',
                 'contract_number' => $isWarranty ? 'required|string|max:100' : 'nullable|string|max:100',
-                'message' => 'nullable|string|max:2000',
+                'message' => $isOrderQuestion ? 'required|string|min:1|max:5000' : 'nullable|string|max:2000',
                 'source_url' => 'nullable|url:http,https|max:500',
                 'form_title' => 'nullable|string|max:500',
                 'form_id' => 'nullable|string|max:120|regex:/^[a-zA-Z0-9._-]+$/',
                 'submission_key' => 'nullable|uuid',
                 'city' => 'nullable|string|max:100',
+                'attribution' => 'nullable|string|max:2000',
+                'selection_token' => $isSelection ? 'required|string|regex:/^[a-f0-9]{48}$/' : 'prohibited',
+                'estimate_version' => $isKitchenEstimate ? 'required|uuid' : 'prohibited',
+                'estimate_inputs' => $isKitchenEstimate ? 'required|string|max:1000' : 'prohibited',
+                'order_id' => $isOrderQuestion ? 'required|string|max:80' : 'prohibited',
+                'order_title' => $isOrderQuestion ? 'nullable|string|max:160' : 'prohibited',
                 'object_address' => $isSiteConsultation ? 'required|string|min:10|max:500' : 'prohibited',
                 'visit_time' => $isSiteConsultation ? 'nullable|string|max:160' : 'prohibited',
                 'dimensions' => $isCountertopEstimate ? 'required|array|min:1|max:10' : 'prohibited',
@@ -150,7 +163,9 @@ class NotificationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
 
         } catch (Exception $e) {
-            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) throw $e;
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
             Log::error('LEGET: Service request notification error', [
                 'error_type' => class_basename($e),
             ]);

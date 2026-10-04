@@ -6,10 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\Role;
 use App\Models\User;
+use App\Services\LoginSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 final class UniversityController extends Controller
 {
@@ -49,7 +49,7 @@ final class UniversityController extends Controller
             ->map(fn ($course) => $this->present($course, false))]);
     }
 
-    public function enroll(Request $request)
+    public function enroll(Request $request, LoginSession $sessions)
     {
         // Any authenticated role may add education without replacing its existing role.
         $user = DB::transaction(function () use ($request) {
@@ -59,7 +59,7 @@ final class UniversityController extends Controller
             return $user;
         });
 
-        return response()->json(['success' => true, 'token' => JWTAuth::fromUser($user), 'expires_in' => JWTAuth::factory()->getTTL() * 60]);
+        return response()->json(['success' => true, ...$sessions->reissue($user, $request->bearerToken())]);
     }
 
     public function course(string $slug)

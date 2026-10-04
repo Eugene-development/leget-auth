@@ -21,6 +21,9 @@ return [
         'promo1-appliance-selection' => 'Подбор техники',
         'promo1-plumbing-selection' => 'Подбор сантехники',
         'promo1-contacts-site-consultation' => 'Консультация на объекте',
+        'selection-estimate' => 'Рассчитать подборку',
+        'kitchen-estimate' => 'Уточнить расчёт кухни',
+        'order-question' => 'Вопрос по заказу',
     ],
     'types' => [
         'glass-mirrors' => 'Стекло и Зеркала',
@@ -41,6 +44,9 @@ return [
         'contact' => 'Обратная связь',
         'subscription' => 'Подписка',
         'partner-application' => 'Заявка партнёра платформы',
+        'selection-estimate' => 'Расчёт подборки',
+        'kitchen-estimate' => 'Расчёт кухни',
+        'order-question' => 'Вопрос по заказу',
     ],
-    'conversion_types' => ['glass-mirrors', 'consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact'],
+    'conversion_types' => ['glass-mirrors', 'consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact', 'selection-estimate', 'kitchen-estimate'],
 ];

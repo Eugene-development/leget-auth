@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prependToPriorityList(\Illuminate\Routing\Middleware\ThrottleRequests::class, \App\Http\Middleware\ResolveFormSiteContext::class);
+        $middleware->prependToPriorityList(\Illuminate\Routing\Middleware\ThrottleRequests::class, \App\Http\Middleware\PrivatePasswordRecoveryResponse::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Отказ от `can:` — в общем для проекта виде {success, message}.

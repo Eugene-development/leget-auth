@@ -38,6 +38,7 @@ abstract class TestCase extends BaseTestCase
                 $table->string('phone', 30)->nullable();
                 $table->string('region', 120)->nullable();
                 $table->string('password');
+                $table->unsignedInteger('token_version')->default(0);
                 $table->rememberToken();
                 $table->timestamps();
             });

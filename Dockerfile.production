@@ -19,7 +19,7 @@ RUN apk add --no-cache \
     --with-jpeg \
     --with-webp \
     --with-freetype \
-    && docker-php-ext-install pdo pdo_mysql gd
+    && docker-php-ext-install pdo pdo_mysql gd pcntl
 
 # Копируем скрипт в образ
 COPY entrypoint.sh /entrypoint.sh

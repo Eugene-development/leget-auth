@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\LoginSession;
 use App\Services\SmartCaptchaService;
 use Exception;
 use Illuminate\Auth\Events\Verified;
@@ -130,7 +131,7 @@ class AuthController extends Controller
     /**
      * Login user and return JWT token.
      */
-    public function login(Request $request, SmartCaptchaService $captcha)
+    public function login(Request $request, SmartCaptchaService $captcha, LoginSession $sessions)
     {
         try {
             Log::info('LEGET: Login attempt', ['email' => $request->input('email')]);
@@ -148,13 +149,14 @@ class AuthController extends Controller
                 'email' => 'required|email',
                 'password' => 'required|string',
                 'captcha_token' => 'nullable|string',
+                'remember' => 'sometimes|boolean',
             ]);
 
             $credentials = $request->only('email', 'password');
             $existing = User::whereRaw('LOWER(email) = ?', [strtolower(trim((string) $credentials['email']))])->first();
             $credentials['email'] = $existing?->email ?? strtolower(trim((string) $credentials['email']));
 
-            if (! $token = JWTAuth::attempt($credentials)) {
+            if (! $session = $sessions->attempt($credentials, $request->boolean('remember'))) {
                 Log::warning('LEGET: Login failed - invalid credentials', ['email' => $request->email]);
 
                 return response()->json([
@@ -165,16 +167,14 @@ class AuthController extends Controller
             }
 
             $user = $existing;
-            $ttl = JWTAuth::factory()->getTTL();
 
             Log::info('LEGET: Login successful', ['user_id' => $user->id, 'email' => $user->email]);
 
             return response()->json([
                 'success' => true,
                 'user' => $user,
-                'token' => $token,
+                ...$session,
                 'token_type' => 'bearer',
-                'expires_in' => $ttl * 60,
                 'email_verified' => $user->hasVerifiedEmail(),
                 'message' => 'Вход выполнен успешно.',
             ]);

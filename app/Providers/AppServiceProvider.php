@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Auth\VersionedJwtGuard;
 use App\Enums\Role;
 use App\Models\User;
 use App\Services\UniversityVerificationIp;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -26,6 +28,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Auth::extend('versioned-jwt', function ($app, string $name, array $config): VersionedJwtGuard {
+            $guard = new VersionedJwtGuard($app['tymon.jwt'], $app['auth']->createUserProvider($config['provider']), $app['request']);
+            $app->refresh('request', $guard, 'setRequest');
+
+            return $guard;
+        });
+
         $this->configureRateLimiting();
         $this->registerRoleGates();
     }
@@ -58,6 +67,18 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
+        RateLimiter::for('password-recovery', function (Request $request): array {
+            $email = $request->input('email');
+            $key = hash('sha256', is_string($email) ? strtolower(trim($email)) : 'invalid');
+
+            return [
+                Limit::perMinute(5)->by('password-recovery:minute:'.$key),
+                Limit::perHour(10)->by('password-recovery:hour:'.$key),
+                Limit::perMinute(30)->by('password-recovery:ip-minute:'.$request->ip()),
+                Limit::perHour(100)->by('password-recovery:ip-hour:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('university-verification', function (Request $request): array {
             $ip = app(UniversityVerificationIp::class)->resolve($request);
             $key = 'university-verification:'.$ip;

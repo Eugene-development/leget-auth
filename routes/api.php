@@ -7,8 +7,11 @@ use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\Crm\CrmIntakeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartnerApplicationController;
+use App\Http\Controllers\PasswordRecoveryController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SmsAuthController;
 use App\Http\Controllers\UniversityController;
+use App\Http\Middleware\PrivatePasswordRecoveryResponse;
 use App\Http\Middleware\ResolveFormSiteContext;
 use Illuminate\Support\Facades\Route;
 
@@ -18,12 +21,17 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+Route::post('/sms/request', [SmsAuthController::class, 'request'])->middleware('throttle:30,1');
+Route::post('/sms/verify', [SmsAuthController::class, 'verify'])->middleware('throttle:60,1');
+
 // ─── Public auth routes ───────────────────────────────────────────────────────
 Route::post('/admin/login', [AdminAuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/password/forgot', [PasswordRecoveryController::class, 'forgot'])->middleware([PrivatePasswordRecoveryResponse::class, 'throttle:password-recovery']);
+    Route::post('/password/reset', [PasswordRecoveryController::class, 'reset'])->middleware([PrivatePasswordRecoveryResponse::class, 'throttle:password-recovery']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Email verification (no auth required — link from email)

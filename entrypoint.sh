@@ -1,77 +1,34 @@
 #!/bin/sh
-
-set -e
-
-echo "🚀 Starting Laravel application..."
-
-# Создаем необходимые директории
-echo "📁 Creating directories..."
-mkdir -p /var/www/storage/logs
-mkdir -p /var/www/storage/framework/sessions
-mkdir -p /var/www/storage/framework/views
-mkdir -p /var/www/storage/framework/cache
-mkdir -p /var/www/bootstrap/cache
-
-# Устанавливаем правильные права
-echo "🔒 Setting permissions..."
-# Используем www-data для совместимости с nginx
-chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-chmod -R 775 /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-
-# Очищаем bootstrap cache принудительно
-echo "🧹 Clearing bootstrap cache..."
-rm -rf /var/www/bootstrap/cache/*
-
-# Переключаемся на пользователя www-data для выполнения artisan команд
-echo "🧹 Clearing Laravel cache..."
-su-exec www-data php artisan config:clear 2>/dev/null || echo "⚠️  Config clear failed, continuing..."
-su-exec www-data php artisan cache:clear 2>/dev/null || echo "⚠️  Cache clear failed, continuing..."
-su-exec www-data php artisan route:clear 2>/dev/null || echo "⚠️  Route clear failed, continuing..."
-su-exec www-data php artisan view:clear 2>/dev/null || echo "⚠️  View clear failed, continuing..."
-
-# Создаем .env файл если его нет
-if [ ! -f /var/www/.env ]; then
-    echo "📝 Creating .env file..."
-    su-exec www-data cp /var/www/.env.example /var/www/.env 2>/dev/null || echo "⚠️  No .env.example found"
+set -eu
+cd /var/www
+# Production settings arrive through env_file and secrets; never generate keys here.
+: "${APP_KEY:?Set the permanent APP_KEY before starting the container}"
+if [ -s /run/secrets/jwt_secret ]; then
+    JWT_SECRET=$(tr -d '\r\n' < /run/secrets/jwt_secret)
+    export JWT_SECRET
 fi
+: "${JWT_SECRET:?Set the shared API/auth JWT secret}"
 
-# Генерируем ключ приложения если его нет
-echo "🔑 Checking application key..."
-# Encrypted form attachments must remain readable after restarts.
-if ! su-exec www-data php -r 'require "vendor/autoload.php"; $app = require "bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); exit(config("app.key") ? 0 : 1);'; then
-    su-exec www-data php artisan key:generate --force
-fi
-
-# Генерируем JWT_SECRET для валидации JWT токенов
-echo "🔑 Setting JWT_SECRET..."
-if [ -f "/run/secrets/jwt_secret" ]; then
-    JWT_SECRET=$(cat /run/secrets/jwt_secret)
-    echo "✅ JWT_SECRET loaded from secret"
-else
-    JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
-    echo "✅ JWT_SECRET generated"
-fi
-export JWT_SECRET
-
-# Write JWT_SECRET to .env file so PHP-FPM can access it
-if [ -f "/var/www/.env" ]; then
-    # Remove existing JWT_SECRET line if present
-    sed -i '/^JWT_SECRET=/d' /var/www/.env
-    # Add new JWT_SECRET
-    echo "JWT_SECRET=${JWT_SECRET}" >> /var/www/.env
-    echo "✅ JWT_SECRET written to .env"
-fi
-
-# Shared form gateway context key is private and stable across container restarts.
-if [ -f "/run/secrets/form_context_secret" ]; then
+if [ -s /run/secrets/form_context_secret ]; then
     FORM_CONTEXT_SECRET=$(tr -d '\r\n' < /run/secrets/form_context_secret)
     export FORM_CONTEXT_SECRET
-    sed -i '/^FORM_CONTEXT_SECRET=/d' /var/www/.env
-    printf '\nFORM_CONTEXT_SECRET=%s\n' "$FORM_CONTEXT_SECRET" >> /var/www/.env
+fi
+: "${FORM_CONTEXT_SECRET:?Set the shared form context secret}"
+if [ "${#FORM_CONTEXT_SECRET}" -lt 32 ]; then
+    echo "FORM_CONTEXT_SECRET must contain at least 32 characters" >&2
+    exit 1
 fi
 
-echo "✅ Laravel initialization complete!"
-
-# Запуск php-fpm от root пользователя чтобы избежать проблем с логированием
-echo "🏃 Starting PHP-FPM..."
-exec php-fpm
+mkdir -p storage/logs storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache
+# Cache belongs to this container, never to a shared volume.
+rm -f bootstrap/cache/config.php
+# Compatibility for the old scheduler role; new Compose uses an explicit command.
+if [ "${CONTAINER_ROLE:-}" = scheduler ]; then
+    set -- php artisan schedule:work
+fi
+if [ "$#" -eq 0 ]; then set -- php-fpm; fi
+if [ "$1" = php-fpm ]; then
+    exec "$@"
+fi
+exec su-exec www-data "$@"

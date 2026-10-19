@@ -11,6 +11,9 @@ README.md
 *.md
 
 # Environment files
+.env
+.env.*
+cert/
 .env.example
 .env.local
 .env.production
@@ -49,3 +52,7 @@ Dockerfile*
 # Temporary files
 *.log
 *.tmp
+
+.claude/
+.impeccable/
+graphify-out/

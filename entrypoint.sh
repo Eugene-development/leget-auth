@@ -3,6 +3,19 @@ set -eu
 cd /var/www
 # Production settings arrive through env_file and secrets; never generate keys here.
 : "${APP_KEY:?Set the permanent APP_KEY before starting the container}"
+# Validate without displaying or changing the encryption key.
+php -r '
+$key = getenv("APP_KEY");
+if (str_starts_with($key, "APP_KEY=")) {
+    fwrite(STDERR, "Invalid APP_KEY: use only the key value, without a second APP_KEY= prefix.\n");
+    exit(1);
+}
+$decoded = str_starts_with($key, "base64:") ? base64_decode(substr($key, 7), true) : $key;
+if ($decoded === false || strlen($decoded) !== 32) {
+    fwrite(STDERR, "Invalid APP_KEY: AES-256-CBC requires 32 bytes. Restore the existing auth key.\n");
+    exit(1);
+}
+'
 if [ -s /run/secrets/jwt_secret ]; then
     JWT_SECRET=$(tr -d '\r\n' < /run/secrets/jwt_secret)
     export JWT_SECRET

@@ -13,7 +13,9 @@ README.md
 # Environment files
 .env
 .env.*
-cert/
+# Include only the public CA used by the application.
+cert/*
+!cert/mysql-ca.pem
 .env.example
 .env.local
 .env.production

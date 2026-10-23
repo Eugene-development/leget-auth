@@ -44,6 +44,9 @@ WORKDIR /var/www
 # Copy application code
 COPY --chown=laravel:laravel . .
 
+# Require the existing public MySQL CA in the image; no certificate mount on VPS.
+COPY --chown=laravel:laravel cert/mysql-ca.pem ./cert/mysql-ca.pem
+
 # Copy composer dependencies
 COPY --from=composer-build --chown=laravel:laravel /app/vendor ./vendor
 

@@ -25,8 +25,9 @@ class InstallmentNotificationTest extends FormTestCase
         });
 
         $this->post('/api/notify/service-request', $this->validPayload())
-            ->assertOk()
+            ->assertSuccessful()
             ->assertJson(['success' => true]);
+        $this->drainFormMail();
     }
 
     public function test_installment_application_rejects_missing_or_unsafe_files(): void
@@ -53,6 +54,7 @@ class InstallmentNotificationTest extends FormTestCase
         $this->post('/api/notify/service-request', $this->validPayload())
             ->assertStatus(202)
             ->assertJson(['success' => true, 'mail_status' => 'pending']);
+        $this->drainFormMail();
     }
 
     /** @return array<string, mixed> */

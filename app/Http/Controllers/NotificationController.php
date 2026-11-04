@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\FormMailDelivery;
 use App\Services\FormSubmissionService;
 use App\Services\SmartCaptchaService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -181,8 +179,6 @@ class NotificationController extends Controller
     private function accept(Request $request, array $data)
     {
         $row = app(FormSubmissionService::class)->accept($data, $request);
-        app(FormMailDelivery::class)->deliver($row->id);
-        $row = DB::table('service_requests')->where('id', $row->id)->first();
 
         return response()->json([
             'success' => true, 'id' => $row->id, 'status' => $row->status,

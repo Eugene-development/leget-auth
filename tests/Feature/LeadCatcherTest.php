@@ -21,16 +21,20 @@ class LeadCatcherTest extends FormTestCase
     {
         $owner = DB::table('users')->insertGetId(['name' => 'Owner', 'email' => 'owner@example.com', 'password' => 'unused']);
         DB::table('licenses')->insert(['id' => 'lead-site', 'domain' => 'tenant.example', 'user_id' => $owner]);
+        $this->withHeaders($this->signedFormContext('tenant.example'));
         Mail::shouldReceive('send')->once()->withArgs(function ($view, $data, $callback) {
             $this->assertSame(0, DB::transactionLevel());
             $this->assertDatabaseHas('service_requests', ['id' => $data['request_id'], 'recipient_email' => 'owner@example.com']);
             $this->assertSame('Получите бесплатную консультацию', $data['form_title']);
             $this->assertSame('Получено', $data['display_details']['Согласие на обработку персональных данных']);
+
             return true;
         });
         $payload = $this->payload();
-        $id = $this->postJson('/api/notify/service-request', $payload)->assertOk()->json('id');
-        $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $id);
+        $id = $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->json('id');
+        $this->drainFormMail();
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['id' => $id, 'name' => '', 'phone' => '+79990000000']);
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('conversions', 1);
@@ -50,7 +54,9 @@ class LeadCatcherTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP unavailable'));
         $payload = $this->payload();
         $id = $this->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('mail_status', 'pending')->json('id');
+        $this->drainFormMail();
         $this->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('id', $id);
+        $this->drainFormMail();
         Mail::shouldReceive('send')->once();
         $this->travel(3)->minutes();
         $this->artisan('forms:retry-mail')->assertSuccessful();

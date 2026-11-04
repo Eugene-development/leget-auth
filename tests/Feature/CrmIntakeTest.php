@@ -38,7 +38,8 @@ class CrmIntakeTest extends FormTestCase
     {
         Mail::shouldReceive('send')->once();
         $p = ['service_type' => 'contact', 'name' => 'Test', 'phone' => '12345678', 'source_url' => 'https://attacker.test/contact', 'license_id' => 'attacker'];
-        $response = $this->postJson('/api/notify/service-request', $p, $this->signed())->assertOk();
+        $response = $this->postJson('/api/notify/service-request', $p, $this->signed())->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['id' => $response->json('id'), 'license_id' => $this->site, 'site_domain' => 'tenant.test', 'recipient_email' => 'owner@crm.test']);
     }
 
@@ -46,7 +47,8 @@ class CrmIntakeTest extends FormTestCase
     {
         Mail::shouldReceive('send')->once();
         $p = ['service_type' => 'contact', 'name' => 'Test', 'phone' => '12345678', 'source_url' => 'https://tenant.test'];
-        $a = $this->postJson('/api/notify/service-request', $p)->assertOk();
+        $a = $this->postJson('/api/notify/service-request', $p)->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['id' => $a->json('id'), 'license_id' => null]);
         $this->postJson('/api/notify/service-request', $p, ['X-Leget-Form-Context' => 'forged.signature'])->assertForbidden();
         $this->postJson('/api/notify/service-request', $p, $this->signed(time: time() - 600))->assertForbidden();
@@ -69,7 +71,9 @@ class CrmIntakeTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('offline'));
         $p = ['submission_key' => (string) Str::uuid(), 'name' => 'Offline client', 'phone' => '12345678', 'channel' => 'call', 'service_type' => 'contact'];
         $a = $this->postJson('/api/crm/sites/'.$this->site.'/offline', $p)->assertStatus(202);
+        $this->drainFormMail();
         $this->postJson('/api/crm/sites/'.$this->site.'/offline', $p)->assertStatus(202)->assertJsonPath('id', $a->json('id'));
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['id' => $a->json('id'), 'license_id' => $this->site, 'channel' => 'call', 'created_by' => $this->manager->id, 'mail_status' => 'pending']);
         $this->assertDatabaseCount('conversions', 0);
         DB::table('crm_memberships')->update(['status' => 'revoked']);
@@ -91,9 +95,11 @@ class CrmIntakeTest extends FormTestCase
         Mail::shouldReceive('send')->times(11);
         $body = ['service_type' => 'contact', 'name' => 'Quota', 'phone' => '12345678'];
         for ($i = 0; $i < 10; $i++) {
-            $this->postJson('/api/notify/service-request', $body, $this->signed(ip: '192.0.2.10'))->assertOk();
+            $this->postJson('/api/notify/service-request', $body, $this->signed(ip: '192.0.2.10'))->assertSuccessful();
+            $this->drainFormMail();
         }
         $this->postJson('/api/notify/service-request', $body, $this->signed(ip: '192.0.2.10'))->assertStatus(429);
-        $this->postJson('/api/notify/service-request', $body, $this->signed(ip: '192.0.2.11'))->assertOk();
+        $this->postJson('/api/notify/service-request', $body, $this->signed(ip: '192.0.2.11'))->assertSuccessful();
+        $this->drainFormMail();
     }
 }

@@ -31,7 +31,8 @@ class FormMailPresentationTest extends FormTestCase
             'service_type' => 'contact', 'form_id' => 'promo1-contact',
             'form_title' => "<b>Кухня вашей мечты</b>\r\n", 'name' => '<script>test</script>',
             'phone' => '+79990000000', 'message' => '<script>message</script>',
-        ])->assertOk()->assertJsonPath('mail_status', 'sent');
+        ])->assertSuccessful()->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $this->assertStringContainsString('form_title', DB::table('service_requests')->value('details'));
     }
 
@@ -46,7 +47,8 @@ class FormMailPresentationTest extends FormTestCase
 
             return true;
         });
-        $this->postJson('/api/notify/service-request', ['service_type' => 'subscription', 'form_id' => 'platform-footer-subscription', 'email' => 'test@example.com'])->assertOk();
+        $this->postJson('/api/notify/service-request', ['service_type' => 'subscription', 'form_id' => 'platform-footer-subscription', 'email' => 'test@example.com'])->assertSuccessful();
+        $this->drainFormMail();
     }
 
     public function test_warranty_details_are_labelled_in_russian(): void
@@ -58,7 +60,8 @@ class FormMailPresentationTest extends FormTestCase
 
             return true;
         });
-        $this->postJson('/api/notify/service-request', ['service_type' => 'warranty', 'name' => 'Анна', 'contract_number' => 'Д-15'])->assertOk();
+        $this->postJson('/api/notify/service-request', ['service_type' => 'warranty', 'name' => 'Анна', 'contract_number' => 'Д-15'])->assertSuccessful();
+        $this->drainFormMail();
     }
 
     public function test_countertop_dimensions_are_labelled_numbered_and_escaped(): void
@@ -78,6 +81,7 @@ class FormMailPresentationTest extends FormTestCase
             'name' => 'Анна',
             'phone' => '+79990000000',
             'dimensions' => ['2400 × 600 мм', '<script>'],
-        ])->assertOk();
+        ])->assertSuccessful();
+        $this->drainFormMail();
     }
 }

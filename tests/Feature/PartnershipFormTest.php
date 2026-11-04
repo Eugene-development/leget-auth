@@ -35,6 +35,7 @@ class PartnershipFormTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP unavailable'));
         $response = $this->postJson('/api/notify/service-request', $payload)
             ->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $id = $response->json('id');
         $row = DB::table('service_requests')->where('id', $id)->first();
         $this->assertSame($status, json_decode($row->details, true)['partnership_status']);
@@ -44,6 +45,7 @@ class PartnershipFormTest extends FormTestCase
         $this->assertSame($payload['phone'] ?? '', $row->phone);
         $this->assertSame($payload['company'], json_decode($row->details, true)['company']);
         $this->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('id', $id);
+        $this->drainFormMail();
         Mail::shouldReceive('send')->once()->withArgs(function ($view, $data, $callback) use ($label, $id) {
             $this->assertSame(0, DB::transactionLevel());
             $this->assertDatabaseHas('service_requests', ['id' => $id, 'mail_status' => 'sending']);
@@ -60,7 +62,8 @@ class PartnershipFormTest extends FormTestCase
         });
         $this->travel(3)->minutes();
         $this->artisan('forms:retry-mail')->assertSuccessful();
-        $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $id);
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseHas('service_requests', ['id' => $id, 'mail_status' => 'sent']);
     }

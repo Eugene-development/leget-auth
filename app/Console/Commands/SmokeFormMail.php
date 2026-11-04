@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Http\Controllers\NotificationController;
+use App\Services\FormMailDelivery;
 use App\Services\SmartCaptchaService;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
@@ -102,7 +103,10 @@ final class SmokeFormMail extends Command
                 : $controller->sendServiceRequestNotification($request);
             $result = $response->getData(true);
             $id = $result['id'] ?? null;
-            $status = $result['mail_status'] ?? 'rejected';
+            if ($id) {
+                app(FormMailDelivery::class)->deliver($id);
+            }
+            $status = $id ? DB::table('service_requests')->where('id', $id)->value('mail_status') : 'rejected';
             if ($id) {
                 // Keep test receipts, but do not inflate real customer conversions.
                 DB::table('service_requests')->where('id', $id)->where('submission_key', $data['submission_key'])->update(['status' => 'cancelled']);

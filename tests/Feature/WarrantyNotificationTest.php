@@ -27,8 +27,9 @@ class WarrantyNotificationTest extends FormTestCase
         });
 
         $this->post('/api/notify/service-request', $this->validPayload())
-            ->assertOk()
+            ->assertSuccessful()
             ->assertJson(['success' => true]);
+        $this->drainFormMail();
     }
 
     public function test_warranty_application_allows_no_photos(): void
@@ -39,8 +40,9 @@ class WarrantyNotificationTest extends FormTestCase
         unset($payload['photos']);
 
         $this->post('/api/notify/service-request', $payload)
-            ->assertOk()
+            ->assertSuccessful()
             ->assertJson(['success' => true]);
+        $this->drainFormMail();
     }
 
     public function test_warranty_application_rejects_missing_contract_too_many_or_unsafe_photos(): void

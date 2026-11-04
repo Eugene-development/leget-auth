@@ -31,7 +31,8 @@ class FormSubmissionTest extends FormTestCase
             if ($type === 'countertop-estimate') {
                 $payload['dimensions'] = ['2400 × 600 мм'];
             }
-            $response = $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('mail_status', 'sent');
+            $response = $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('mail_status', 'pending');
+            $this->drainFormMail();
             $this->assertDatabaseHas('service_requests', ['id' => $response->json('id'), 'service_type' => $type, 'recipient_email' => 'info@novostroy.org']);
             $this->assertSame(in_array($type, config('forms.conversion_types'), true), DB::table('conversions')->where('service_request_id', $response->json('id'))->exists());
         }
@@ -41,8 +42,10 @@ class FormSubmissionTest extends FormTestCase
     {
         Mail::shouldReceive('send')->once();
         $payload = $this->payload() + ['submission_key' => (string) Str::uuid()];
-        $first = $this->postJson('/api/notify/service-request', $payload)->assertOk();
-        $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $first->json('id'));
+        $first = $this->postJson('/api/notify/service-request', $payload)->assertSuccessful();
+        $this->drainFormMail();
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $first->json('id'));
+        $this->drainFormMail();
         $this->postJson('/api/notify/service-request', array_replace($payload, ['name' => 'Other']))->assertUnprocessable();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('conversions', 1);
@@ -52,6 +55,7 @@ class FormSubmissionTest extends FormTestCase
     {
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP unavailable'));
         $response = $this->postJson('/api/notify/service-request', $this->payload())->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $id = $response->json('id');
         $this->assertDatabaseHas('service_requests', ['id' => $id, 'mail_attempts' => 1, 'mail_error' => 'RuntimeException']);
         Mail::shouldReceive('send')->once();
@@ -76,6 +80,7 @@ class FormSubmissionTest extends FormTestCase
         $file = UploadedFile::fake()->image('private.jpg');
         $bytes = file_get_contents($file->getRealPath());
         $response = $this->post('/api/notify/service-request', $this->payload('warranty') + ['contract_number' => 'TEST', 'photos' => [$file]])->assertStatus(202);
+        $this->drainFormMail();
         $attachment = DB::table('service_request_attachments')->first();
         $encrypted = Storage::disk($attachment->disk)->get($attachment->path);
         $this->assertNotSame($bytes, $encrypted);
@@ -113,7 +118,8 @@ class FormSubmissionTest extends FormTestCase
         Mail::shouldReceive('send')->once();
         $payload = ['name' => 'TEST', 'email' => 'test@example.com', 'message' => 'TEST contact'];
         $this->postJson('/api/notify/contact', $payload + ['captcha_token' => 'bad'])->assertUnprocessable();
-        $this->postJson('/api/notify/contact', $payload + ['captcha_token' => 'good'])->assertOk();
+        $this->postJson('/api/notify/contact', $payload + ['captcha_token' => 'good'])->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['service_type' => 'contact', 'message' => 'TEST contact']);
     }
 
@@ -121,21 +127,26 @@ class FormSubmissionTest extends FormTestCase
     {
         $owner = DB::table('users')->insertGetId(['name' => 'Owner', 'email' => 'owner@example.com', 'password' => 'unused']);
         DB::table('licenses')->insert(['id' => 'test-license', 'domain' => 'tenant.example', 'user_id' => $owner]);
+        $this->withHeaders($this->signedFormContext('tenant.example'));
         Mail::shouldReceive('send')->twice();
         $payload = $this->payload() + ['source_url' => 'https://www.tenant.example/contact', 'recipient_email' => 'attacker@example.com'];
-        $this->postJson('/api/notify/service-request', $payload)->assertOk();
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['recipient_email' => 'owner@example.com', 'site_domain' => 'tenant.example']);
         config(['forms.recipient_override' => 'info@novostroy.org']);
-        $this->postJson('/api/notify/service-request', $payload)->assertOk();
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['recipient_email' => 'info@novostroy.org', 'site_domain' => 'tenant.example']);
     }
 
     public function test_subscription_accepts_only_email_and_contacts_accept_only_phone(): void
     {
         Mail::shouldReceive('send')->twice();
-        $this->postJson('/api/notify/service-request', ['service_type' => 'subscription', 'email' => 'test@example.com'])->assertOk();
+        $this->postJson('/api/notify/service-request', ['service_type' => 'subscription', 'email' => 'test@example.com'])->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['service_type' => 'subscription', 'email' => 'test@example.com', 'phone' => '']);
-        $this->postJson('/api/notify/service-request', ['service_type' => 'contact', 'name' => 'TEST', 'phone' => '+79990000000'])->assertOk();
+        $this->postJson('/api/notify/service-request', ['service_type' => 'contact', 'name' => 'TEST', 'phone' => '+79990000000'])->assertSuccessful();
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['service_type' => 'contact', 'email' => null, 'phone' => '+79990000000']);
     }
 
@@ -145,7 +156,8 @@ class FormSubmissionTest extends FormTestCase
         $response = $this->postJson('/api/notify/service-request', $this->payload('countertop-estimate') + [
             'form_id' => 'promo1-countertop-estimate',
             'dimensions' => ['first' => '2400 × 600 мм', 'second' => '1200 × 650 мм'],
-        ])->assertOk();
+        ])->assertSuccessful();
+        $this->drainFormMail();
 
         $row = DB::table('service_requests')->where('id', $response->json('id'))->first();
         $this->assertSame(['2400 × 600 мм', '1200 × 650 мм'], json_decode($row->details, true, flags: JSON_THROW_ON_ERROR)['dimensions']);
@@ -173,7 +185,8 @@ class FormSubmissionTest extends FormTestCase
         DB::table('service_requests')->insert($payload + ['id' => $id, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('conversions')->insert(['id' => (string) Str::ulid(), 'channel' => 'online', 'type' => 'consultation', 'name' => 'TEST', 'service_request_id' => $id]);
         Mail::shouldReceive('send')->once();
-        $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $id);
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('conversions', 1);
         $this->assertDatabaseHas('service_requests', ['id' => $id, 'mail_status' => 'sent']);
@@ -195,7 +208,8 @@ class FormSubmissionTest extends FormTestCase
     {
         config(['forms.max_attempts' => 1]);
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('offline'));
-        $response = $this->postJson('/api/notify/service-request', $this->payload())->assertStatus(202)->assertJsonPath('mail_status', 'failed');
+        $response = $this->postJson('/api/notify/service-request', $this->payload())->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $this->artisan('forms:retry-mail')->assertFailed();
         Mail::shouldReceive('send')->once();
         $this->artisan('forms:retry-mail', ['--id' => $response->json('id')])->assertSuccessful();

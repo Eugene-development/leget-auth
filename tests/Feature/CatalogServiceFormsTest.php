@@ -14,6 +14,7 @@ class CatalogServiceFormsTest extends FormTestCase
     {
         $owner = DB::table('users')->insertGetId(['name' => 'Owner', 'email' => 'owner@example.com', 'password' => 'unused']);
         DB::table('licenses')->insert(['id' => 'site-consultation-test', 'domain' => 'tenant.example', 'user_id' => $owner]);
+        $this->withHeaders($this->signedFormContext('tenant.example'));
         $payload = [
             'service_type' => 'consultation',
             'form_id' => 'promo1-contacts-site-consultation',
@@ -42,6 +43,7 @@ class CatalogServiceFormsTest extends FormTestCase
 
         $response = $this->postJson('/api/notify/service-request', $payload)
             ->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $id = $response->json('id');
         $this->assertDatabaseHas('service_requests', [
             'id' => $id, 'service_type' => 'consultation', 'form_id' => $payload['form_id'],
@@ -51,6 +53,7 @@ class CatalogServiceFormsTest extends FormTestCase
         $this->assertSame($payload['object_address'], $details['object_address']);
         $this->assertSame($payload['visit_time'], $details['visit_time']);
         $this->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('id', $id);
+        $this->drainFormMail();
         Mail::shouldReceive('send')->once();
         $this->travel(3)->minutes();
         $this->artisan('forms:retry-mail')->assertSuccessful();
@@ -99,6 +102,7 @@ class CatalogServiceFormsTest extends FormTestCase
     {
         $owner = DB::table('users')->insertGetId(['name' => 'Owner', 'email' => 'owner@example.com', 'password' => 'unused']);
         DB::table('licenses')->insert(['id' => 'catalog-test', 'domain' => 'tenant.example', 'user_id' => $owner]);
+        $this->withHeaders($this->signedFormContext('tenant.example'));
         $payload = [
             'service_type' => $type, 'form_id' => $form,
             'submission_key' => (string) Str::uuid(), 'form_title' => 'TEST — '.$type,
@@ -129,7 +133,8 @@ class CatalogServiceFormsTest extends FormTestCase
 
             return $view === 'emails.form-submission';
         });
-        $response = $this->post('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('mail_status', 'sent');
+        $response = $this->post('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $id = $response->json('id');
         $this->assertNotEmpty($id);
         $this->assertDatabaseHas('service_requests', [
@@ -141,7 +146,8 @@ class CatalogServiceFormsTest extends FormTestCase
         $details = json_decode(DB::table('service_requests')->where('id', $id)->value('details'), true);
         $this->assertSame($payload['form_title'], $details['form_title']);
         $this->assertSame($payload['dimensions'] ?? null, $details['dimensions'] ?? null);
-        $this->post('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $id);
+        $this->post('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('conversions', 1);
     }

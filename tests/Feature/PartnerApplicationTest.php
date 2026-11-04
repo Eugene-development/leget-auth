@@ -40,6 +40,7 @@ class PartnerApplicationTest extends FormTestCase
             ->assertJsonPath('application.status', PartnerStatus::Pending->value)
             ->assertJsonPath('application.partner_type', PartnerType::Manufacturer->value)
             ->assertJsonPath('application.partner_type_label', 'Производитель');
+        $this->drainFormMail();
 
         // Роль не изменилась: форма не выдаёт прав.
         $this->assertSame(Role::Client, $user->fresh()->role);
@@ -89,11 +90,13 @@ class PartnerApplicationTest extends FormTestCase
             'partner_type' => PartnerType::Designer->value,
             'city' => 'Москва',
         ])->assertSuccessful();
+        $this->drainFormMail();
 
         $this->as($user)->postJson('/api/partner/apply', ['submission_key' => (string) Str::uuid(),
             'partner_type' => PartnerType::Assembler->value,
             'city' => 'Казань',
         ])->assertSuccessful();
+        $this->drainFormMail();
 
         $this->assertSame(1, $user->fresh()->partnerProfile()->count());
         $this->assertDatabaseHas('partner_profiles', [
@@ -117,6 +120,7 @@ class PartnerApplicationTest extends FormTestCase
             'partner_type' => PartnerType::Supplier->value,
             'website' => 'https://example.test',
         ])->assertSuccessful();
+        $this->drainFormMail();
 
         $this->assertDatabaseHas('partner_profiles', [
             'user_id' => $user->id,
@@ -140,6 +144,7 @@ class PartnerApplicationTest extends FormTestCase
         ])->assertSuccessful()
             ->assertJsonPath('application.status', PartnerStatus::Pending->value)
             ->assertJsonPath('application.review_note', null);
+        $this->drainFormMail();
     }
 
     public function test_own_application_is_readable(): void
@@ -173,7 +178,9 @@ class PartnerApplicationTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP offline'));
         $body = ['submission_key' => (string) Str::uuid(), 'partner_type' => 'designer', 'company' => 'Практика', 'inn' => '123456789012', 'website' => 'https://example.test', 'city' => 'Казань', 'comment' => 'Подключите партнёра'];
         $first = $this->as($user)->postJson('/api/partner/apply', $body)->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $this->as($user)->postJson('/api/partner/apply', $body)->assertStatus(202)->assertJsonPath('id', $first->json('id'));
+        $this->drainFormMail();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('partner_profiles', 1);
         $this->assertDatabaseHas('service_requests', ['id' => $first->json('id'), 'recipient_email' => 'info@novostroy.org', 'message' => 'Подключите партнёра']);
@@ -183,7 +190,7 @@ class PartnerApplicationTest extends FormTestCase
         $this->as($user)->postJson('/api/partner/apply', $changed)->assertStatus(422);
         $this->assertDatabaseHas('partner_profiles', ['user_id' => $user->id, 'city' => 'Казань']);
         Mail::shouldReceive('send')->once();
-        DB::table('service_requests')->where('id', $first->json('id'))->update(['mail_retry_at' => now()->subMinute()]);
+        DB::table('service_request_mail_deliveries')->where('service_request_id', $first->json('id'))->update(['retry_at' => now()->subMinute()]);
         app(FormMailDelivery::class)->deliver($first->json('id'));
         $this->assertDatabaseHas('service_requests', ['id' => $first->json('id'), 'mail_status' => 'sent', 'mail_attempts' => 2]);
     }

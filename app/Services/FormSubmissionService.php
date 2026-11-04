@@ -71,16 +71,6 @@ final class FormSubmissionService
                 if ($site) {
                     $domain = $site->domain;
                 }
-                $recipient = config('forms.recipient_override') ?: config('forms.recipient');
-                if (! config('forms.recipient_override') && $domain) {
-                    $owner = $site ? DB::table('users')->where('id', $site->user_id)->value('email') : DB::table('licenses')->join('users', 'users.id', '=', 'licenses.user_id')->where('licenses.domain', $domain)->value('users.email');
-                    if ($owner) {
-                        $recipient = $owner;
-                    }
-                }
-                if (! filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-                    throw new \RuntimeException('Form recipient not configured');
-                }
                 $type = $data['service_type'];
                 $legacy = null;
                 if (! $request->filled('submission_key')) {
@@ -107,7 +97,7 @@ final class FormSubmissionService
                     'name' => $data['name'] ?? '', 'phone' => $data['phone'] ?? '',
                     'email' => $data['email'] ?? null, 'message' => $data['message'] ?? null,
                     'city' => $data['city'] ?? null, 'source_url' => $source,
-                    'site_domain' => $domain ?: null, 'recipient_email' => $recipient,
+                    'site_domain' => $domain ?: null, 'recipient_email' => null,
                     'details' => json_encode($details, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(),
                     'status' => 'new', 'mail_status' => 'pending', 'mail_retry_at' => now(),
@@ -136,6 +126,8 @@ final class FormSubmissionService
                         'service_request_id' => $id, 'created_at' => now(), 'updated_at' => now(),
                     ]);
                 }
+
+                app(FormMailOutbox::class)->enqueue(DB::table('service_requests')->where('id', $id)->first());
 
                 return DB::table('service_requests')->where('id', $id)->first();
             });

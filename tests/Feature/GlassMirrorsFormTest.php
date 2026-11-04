@@ -47,7 +47,8 @@ class GlassMirrorsFormTest extends FormTestCase
 
             return $view === 'emails.form-submission';
         });
-        $id = $this->post('/api/notify/service-request', $payload, $headers)->assertOk()->assertJsonPath('mail_status', 'sent')->json('id');
+        $id = $this->post('/api/notify/service-request', $payload, $headers)->assertSuccessful()->assertJsonPath('mail_status', 'pending')->json('id');
+        $this->drainFormMail();
         $this->assertNotEmpty($id);
         $this->assertDatabaseHas('service_requests', [
             'id' => $id, 'license_id' => 'glass-site', 'channel' => 'online', 'status' => 'new',
@@ -56,7 +57,8 @@ class GlassMirrorsFormTest extends FormTestCase
             'message' => $payload['message'], 'source_url' => $payload['source_url'],
             'recipient_email' => 'glass-owner@example.com', 'mail_status' => 'sent', 'mail_attempts' => 1,
         ]);
-        $this->post('/api/notify/service-request', $payload, $headers)->assertOk()->assertJsonPath('id', $id);
+        $this->post('/api/notify/service-request', $payload, $headers)->assertSuccessful()->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('conversions', 1);
     }
@@ -67,7 +69,9 @@ class GlassMirrorsFormTest extends FormTestCase
         $payload = $this->payload();
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP offline'));
         $id = $this->post('/api/notify/service-request', $payload, $headers)->assertStatus(202)->assertJsonPath('mail_status', 'pending')->json('id');
+        $this->drainFormMail();
         $this->post('/api/notify/service-request', $payload, $headers)->assertStatus(202)->assertJsonPath('id', $id);
+        $this->drainFormMail();
         $this->assertDatabaseHas('service_requests', ['id' => $id, 'license_id' => 'glass-site', 'status' => 'new']);
         Mail::shouldReceive('send')->once();
         $this->travel(3)->minutes();

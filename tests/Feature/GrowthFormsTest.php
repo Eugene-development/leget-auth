@@ -37,7 +37,9 @@ class GrowthFormsTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP unavailable'));
         $payload = $this->payload('selection-estimate') + ['selection_token' => $this->token, 'attribution' => json_encode(['utm_source' => 'direct', 'utm_medium' => 'cpc', 'utm_campaign' => 'kitchen', 'yclid' => '123456', 'metrika_client_id' => '456789'])];
         $response = $this->withHeaders($this->siteHeaders())->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('mail_status', 'pending');
+        $this->drainFormMail();
         $this->postJson('/api/notify/service-request', $payload)->assertStatus(202)->assertJsonPath('id', $response->json('id'));
+        $this->drainFormMail();
         $row = DB::table('service_requests')->where('id', $response->json('id'))->first();
         $details = json_decode($row->details, true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('Кухня Анны', $details['selection']['title']);
@@ -69,7 +71,8 @@ class GrowthFormsTest extends FormTestCase
     {
         Mail::shouldReceive('send')->once();
         $payload = $this->payload('kitchen-estimate') + ['estimate_version' => $this->version, 'estimate_inputs' => json_encode(['run_cm' => 300, 'layout' => 'l', 'material' => 'paint', 'equipment' => 1]), 'min' => 1, 'max' => 2];
-        $response = $this->withHeaders($this->siteHeaders())->postJson('/api/notify/service-request', $payload)->assertOk();
+        $response = $this->withHeaders($this->siteHeaders())->postJson('/api/notify/service-request', $payload)->assertSuccessful();
+        $this->drainFormMail();
         $details = json_decode(DB::table('service_requests')->where('id', $response->json('id'))->value('details'), true);
         $this->assertSame(300, $details['estimate']['inputs']['run_cm']);
         $this->assertSame(77000, $details['estimate']['min']);
@@ -77,7 +80,8 @@ class GrowthFormsTest extends FormTestCase
         $this->assertSame('Эмаль', $details['estimate']['material_label']);
         DB::table('kitchen_estimate_settings')->where('license_id', $this->site)->update(['version' => (string) Str::uuid()]);
         // Already accepted request stays idempotent even after a rule change.
-        $this->postJson('/api/notify/service-request', $payload)->assertOk()->assertJsonPath('id', $response->json('id'));
+        $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('id', $response->json('id'));
+        $this->drainFormMail();
         $payload['submission_key'] = (string) Str::uuid();
         $this->postJson('/api/notify/service-request', $payload)->assertUnprocessable();
         $this->assertDatabaseCount('service_requests', 1);
@@ -95,7 +99,8 @@ class GrowthFormsTest extends FormTestCase
     public function test_order_question_is_unified_request_with_untrusted_reference_only(): void
     {
         Mail::shouldReceive('send')->once();
-        $response = $this->postJson('/api/notify/service-request', $this->payload('order-question') + ['order_id' => 'customer-visible-order', 'order_title' => 'Кухня', 'email' => 'client@example.com'])->assertOk();
+        $response = $this->postJson('/api/notify/service-request', $this->payload('order-question') + ['order_id' => 'customer-visible-order', 'order_title' => 'Кухня', 'email' => 'client@example.com'])->assertSuccessful();
+        $this->drainFormMail();
         $row = DB::table('service_requests')->where('id', $response->json('id'))->first();
         $this->assertSame(['form_title' => 'Тестовая форма', 'order_id' => 'customer-visible-order', 'order_title' => 'Кухня'], json_decode($row->details, true));
         $this->assertDatabaseCount('conversions', 0);

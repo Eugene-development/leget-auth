@@ -20,6 +20,7 @@ class RoleMigrationTest extends TestCase
             DB::table('users')->insert(['id' => $i + 1, 'name' => $role, 'email' => $role.'@test.local', 'password' => 'unused', 'role' => $role]);
         }
         DB::table('licenses')->insert([['user_id' => 2], ['user_id' => 3]]);
+        require_once base_path('../leget-db/app/Support/PostSnapshotData.php');
         $migration = require base_path('../leget-db/database/migrations/2026_09_28_210000_separate_student_access_and_site_admin.php');
         $migration->up();
         $this->assertDatabaseHas('users', ['id' => 1, 'role' => 'client']);

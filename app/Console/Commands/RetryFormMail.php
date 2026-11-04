@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\FormMailDelivery;
+use App\Services\FormMailOutbox;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,9 +14,9 @@ final class RetryFormMail extends Command
 {
     protected $signature = 'forms:retry-mail {--limit=100} {--id=}';
 
-    protected $description = 'Retry pending application emails; recover interrupted deliveries';
+    protected $description = 'Process a bounded mail batch or retry unsent recipients of one submission';
 
-    public function handle(FormMailDelivery $delivery): int
+    public function handle(FormMailDelivery $delivery, FormMailOutbox $outbox): int
     {
         if ($id = $this->option('id')) {
             if (! Str::isUlid($id)) {
@@ -23,26 +24,20 @@ final class RetryFormMail extends Command
 
                 return self::FAILURE;
             }
-            DB::table('service_requests')->where('id', $id)->whereIn('mail_status', ['pending', 'failed'])
-                ->update(['mail_status' => 'pending', 'mail_retry_at' => now()]);
+            $outbox->retry($id);
             $delivery->deliver($id);
             $status = DB::table('service_requests')->where('id', $id)->value('mail_status');
             $this->info('Mail status: '.($status ?? 'not found'));
 
             return $status === 'sent' ? self::SUCCESS : self::FAILURE;
         }
-        DB::table('service_requests')->where('mail_status', 'sending')->where('mail_locked_at', '<', now()->subMinutes(10))
-            ->where('mail_attempts', '>=', config('forms.max_attempts'))
-            ->update(['mail_status' => 'failed', 'mail_locked_at' => null, 'mail_error' => 'InterruptedDelivery']);
-        DB::table('service_requests')->where('mail_status', 'sending')->where('mail_locked_at', '<', now()->subMinutes(10))
-            ->update(['mail_status' => 'pending', 'mail_retry_at' => now(), 'mail_locked_at' => null]);
-        $ids = DB::table('service_requests')->where('mail_status', 'pending')->where('mail_retry_at', '<=', now())
-            ->orderBy('created_at')->limit(max(1, min(1000, (int) $this->option('limit'))))->pluck('id');
-        foreach ($ids as $id) {
-            $delivery->deliver($id);
+        $limit = max(1, min(1000, (int) $this->option('limit')));
+        $count = 0;
+        while ($count < $limit && $delivery->processOne()) {
+            $count++;
         }
         $failed = DB::table('service_requests')->where('mail_status', 'failed')->count();
-        $this->info('Processed: '.$ids->count().'; permanently failed: '.$failed);
+        $this->info('Processed: '.$count.'; permanently failed: '.$failed);
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }

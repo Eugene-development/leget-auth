@@ -9,7 +9,6 @@ use App\Enums\PartnerType;
 use App\Enums\Role;
 use App\Models\PartnerProfile;
 use App\Models\User;
-use App\Services\FormMailDelivery;
 use App\Services\FormSubmissionService;
 use App\Services\UserRole;
 use Illuminate\Http\Request;
@@ -99,9 +98,8 @@ final class PartnerApplicationController extends Controller
 
             return [$profile, $submission];
         });
-        app(FormMailDelivery::class)->deliver($submission->id);
 
-        $mail = DB::table('service_requests')->where('id', $submission->id)->first();
+        $mail = $submission;
 
         return response()->json([
             'success' => true,

@@ -28,14 +28,17 @@ class PartnershipNotificationTest extends FormTestCase
                 && $data['partnership_status'] === 'Вы поставщик';
         });
         $this->postJson('/api/notify/service-request', $this->supplier(['email' => 'partner@example.com']))
-            ->assertOk()->assertJson(['success' => true]);
+            ->assertSuccessful()->assertJson(['success' => true]);
+        $this->drainFormMail();
     }
 
     public function test_supplier_can_leave_only_phone_or_both_contacts(): void
     {
         Mail::shouldReceive('send')->twice();
-        $this->postJson('/api/notify/service-request', $this->supplier(['phone' => '+79991234567']))->assertOk();
-        $this->postJson('/api/notify/service-request', $this->supplier(['phone' => '+79991234567', 'email' => 'partner@example.com']))->assertOk();
+        $this->postJson('/api/notify/service-request', $this->supplier(['phone' => '+79991234567']))->assertSuccessful();
+        $this->drainFormMail();
+        $this->postJson('/api/notify/service-request', $this->supplier(['phone' => '+79991234567', 'email' => 'partner@example.com']))->assertSuccessful();
+        $this->drainFormMail();
     }
 
     public function test_supplier_needs_at_least_one_valid_contact(): void
@@ -56,7 +59,8 @@ class PartnershipNotificationTest extends FormTestCase
         $payload = ['service_type' => 'partnership', 'partnership_status' => 'referral', 'name' => 'Иван', 'city' => 'Москва', 'message' => 'Хочу сотрудничать'];
         $this->postJson('/api/notify/service-request', $payload + ['email' => 'partner@example.com'])
             ->assertUnprocessable()->assertJsonValidationErrors('phone');
-        $this->postJson('/api/notify/service-request', $payload + ['phone' => '+79991234567'])->assertOk();
+        $this->postJson('/api/notify/service-request', $payload + ['phone' => '+79991234567'])->assertSuccessful();
+        $this->drainFormMail();
     }
 
     public function test_other_services_still_require_phone(): void
@@ -71,5 +75,6 @@ class PartnershipNotificationTest extends FormTestCase
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('Mail unavailable'));
         $this->postJson('/api/notify/service-request', $this->supplier(['email' => 'partner@example.com']))
             ->assertStatus(202)->assertJson(['success' => true, 'mail_status' => 'pending']);
+        $this->drainFormMail();
     }
 }

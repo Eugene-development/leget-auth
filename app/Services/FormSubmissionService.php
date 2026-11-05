@@ -127,10 +127,19 @@ final class FormSubmissionService
                     ]);
                 }
 
+                if ($type === 'promo') {
+                    $promo = app(PhonePromoIssuer::class)->issue($row['phone'], $site?->id, $id);
+                    $details['promo'] = ['code' => $promo->code, 'discount' => '2%',
+                        'terms' => 'На любую продукцию или услугу. Промокод персональный, для одного заказа.'];
+                    DB::table('service_requests')->where('id', $id)->update([
+                        'details' => json_encode($details, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    ]);
+                }
+
                 app(FormMailOutbox::class)->enqueue(DB::table('service_requests')->where('id', $id)->first());
 
                 return DB::table('service_requests')->where('id', $id)->first();
-            });
+            }, 3);
         } catch (\Throwable $e) {
             foreach ($stored as [$disk, $path]) {
                 try {

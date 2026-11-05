@@ -82,6 +82,7 @@ class NotificationController extends Controller
     public function sendServiceRequestNotification(Request $request)
     {
         try {
+            $isPromo = $request->input('service_type') === 'promo';
             $isLeadCatcher = $request->input('form_id') === 'promo1-lead-catcher';
             $isGlass = $request->input('service_type') === 'glass-mirrors';
             $isPartnership = $request->input('service_type') === 'partnership';
@@ -96,7 +97,7 @@ class NotificationController extends Controller
             $isKitchenEstimate = $request->input('service_type') === 'kitchen-estimate';
             $isOrderQuestion = $request->input('service_type') === 'order-question';
             $phoneRule = match (true) {
-                $isLeadCatcher => 'required|string|regex:/^\+7[0-9]{10}$/',
+                $isLeadCatcher, $isPromo => 'required|string|regex:/^\+7[0-9]{10}$/',
                 $isGlass => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
                 $isContact, $isOrderQuestion => 'nullable|required_without:email|string|max:50',
@@ -112,7 +113,7 @@ class NotificationController extends Controller
 
             $validated = $request->validate([
                 'service_type' => ['required', Rule::in(array_diff(array_keys(config('forms.types')), ['partner-application']))],
-                'name' => ($isSubscription || $isLeadCatcher) ? 'nullable|string|max:255' : 'required|string|max:255',
+                'name' => ($isSubscription || $isLeadCatcher || $isPromo) ? 'nullable|string|max:255' : 'required|string|max:255',
                 'phone' => $phoneRule,
                 'consent' => $isLeadCatcher ? 'required|accepted' : 'prohibited',
                 'email' => $emailRule,

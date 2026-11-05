@@ -26,6 +26,11 @@ abstract class FormTestCase extends TestCase
                 (require base_path('../leget-db/database/migrations/'.$file))->up();
             }
         }
+        if (! Schema::hasTable('promo_codes')) {
+            foreach (['2026_08_30_100001_create_ad_attributions_table.php', '2026_08_30_100002_create_promo_codes_table.php', '2026_08_30_100004_create_promo_code_events_table.php', '2026_11_04_120000_allow_phone_promo_codes.php'] as $file) {
+                (require base_path('../leget-db/database/migrations/'.$file))->up();
+            }
+        }
     }
 
     protected function signedFormContext(string $domain): array

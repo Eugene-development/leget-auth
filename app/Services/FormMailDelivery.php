@@ -78,6 +78,12 @@ final class FormMailDelivery
                 $displayDetails[$label] = ($key === 'partnership_status' ? $partnershipLabels[$details[$key]] ?? null : $values[$details[$key]] ?? null) ?? $details[$key];
             }
         }
+        if (! empty($details['promo'])) {
+            $displayDetails['Персональный промокод'] = $details['promo']['code'];
+            $displayDetails['Скидка на ВСЁ'] = $details['promo']['discount'];
+            $displayDetails['Условия промокода'] = $details['promo']['terms'];
+            $displayDetails['Действие для куратора'] = 'Отправьте этот промокод клиенту на указанный телефон.';
+        }
         if (! empty($details['dimensions']) && is_array($details['dimensions'])) {
             $displayDetails['Размеры'] = implode("\n", array_map(
                 fn ($value, $index) => ($index + 1).'. '.$value,

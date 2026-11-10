@@ -25,7 +25,22 @@ return [
         'kitchen-estimate' => 'Уточнить расчёт кухни',
         'order-question' => 'Вопрос по заказу',
     ],
+    // Stable form IDs also constrain the service type and additional fields.
+    'promo2_modals' => [
+        'consultation' => ['title' => 'Бесплатная консультация', 'type' => 'consultation'],
+        'showroom' => ['title' => 'Записаться в салон', 'type' => 'showroom-visit'],
+        'home-designer' => ['title' => 'Вызвать дизайнера на дом', 'type' => 'design-project'],
+        'kitchen-project' => ['title' => 'Спроектировать кухню', 'type' => 'design-project'],
+        'wardrobe-project' => ['title' => 'Спроектировать шкаф', 'type' => 'design-project'],
+        'design-project' => ['title' => 'Заказать дизайн-проект', 'type' => 'design-project'],
+        'estimate' => ['title' => 'Рассчитать стоимость мебели', 'type' => 'furniture-estimate'],
+        'action-consultation' => ['title' => 'Консультация по акции', 'type' => 'consultation'],
+        'partnership' => ['title' => 'Заявка на партнёрство', 'type' => 'partnership'],
+        'careers' => ['title' => 'Отклик на вакансию', 'type' => 'careers'],
+    ],
     'types' => [
+        'showroom-visit' => 'Запись в салон',
+        'furniture-estimate' => 'Расчёт стоимости мебели',
         'glass-mirrors' => 'Стекло и Зеркала',
         'consultation' => 'Консультация',
         'design-project' => 'Дизайн-проект',
@@ -48,5 +63,5 @@ return [
         'kitchen-estimate' => 'Расчёт кухни',
         'order-question' => 'Вопрос по заказу',
     ],
-    'conversion_types' => ['glass-mirrors', 'consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact', 'selection-estimate', 'kitchen-estimate'],
+    'conversion_types' => ['showroom-visit', 'furniture-estimate', 'glass-mirrors', 'consultation', 'design-project', 'furniture-project', 'assembly', 'measurement', 'countertop-estimate', 'appliance-selection', 'plumbing-selection', 'installment', 'partnership', 'promo', 'contact', 'selection-estimate', 'kitchen-estimate'],
 ];

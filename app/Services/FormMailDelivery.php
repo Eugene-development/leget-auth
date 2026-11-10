@@ -66,8 +66,8 @@ final class FormMailDelivery
         if ($title === '') {
             $title = 'Новое обращение';
         }
-        $labels = ['company' => 'Компания', 'partnership_status' => 'Статус отправителя', 'contract_number' => 'Номер договора', 'position' => 'Вакансия', 'partner_type' => 'Тип партнёра', 'inn' => 'ИНН', 'website' => 'Сайт', 'object_address' => 'Адрес объекта', 'visit_time' => 'Удобное время встречи'];
-        $values = ['referral' => 'Вы приводите клиентов', 'supplier' => 'Фабрика или поставщик', 'manufacturer' => 'Производитель', 'designer' => 'Дизайнер', 'assembler' => 'Сборщик'];
+        $labels = ['request_subject' => 'Тема обращения', 'showroom' => 'Предпочтительный салон', 'designer_type' => 'Формат работы дизайнера', 'company' => 'Компания', 'partnership_status' => 'Статус отправителя', 'contract_number' => 'Номер договора', 'position' => 'Вакансия', 'partner_type' => 'Тип партнёра', 'inn' => 'ИНН', 'website' => 'Сайт', 'object_address' => 'Адрес объекта', 'visit_time' => 'Удобное время встречи'];
+        $values = ['studio' => 'Студия', 'freelancer' => 'Частный дизайнер', 'referral' => 'Вы приводите клиентов', 'supplier' => 'Фабрика или поставщик', 'manufacturer' => 'Производитель', 'designer' => 'Дизайнер', 'assembler' => 'Сборщик'];
         $partnershipLabels = ['referral' => 'Вы приводите клиентов', 'manufacturer' => 'Вы фабрика изготовитель', 'supplier' => 'Вы поставщик', 'other' => 'Иное'];
         $displayDetails = [];
         if (! empty($details['consent'])) {

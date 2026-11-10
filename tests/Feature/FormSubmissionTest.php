@@ -31,6 +31,12 @@ class FormSubmissionTest extends FormTestCase
             if ($type === 'countertop-estimate') {
                 $payload['dimensions'] = ['2400 × 600 мм'];
             }
+            if (in_array($type, ['showroom-visit', 'furniture-estimate'], true)) {
+                $payload['form_id'] = $type === 'showroom-visit' ? 'promo2-modal-showroom' : 'promo2-modal-estimate';
+                $payload['consent'] = '1';
+                $payload['submission_key'] = (string) Str::uuid();
+                $payload['city'] = 'Москва';
+            }
             $response = $this->postJson('/api/notify/service-request', $payload)->assertSuccessful()->assertJsonPath('mail_status', 'pending');
             $this->drainFormMail();
             $this->assertDatabaseHas('service_requests', ['id' => $response->json('id'), 'service_type' => $type, 'recipient_email' => 'info@novostroy.org']);

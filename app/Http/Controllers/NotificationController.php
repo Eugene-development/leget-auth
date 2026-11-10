@@ -82,6 +82,18 @@ class NotificationController extends Controller
     public function sendServiceRequestNotification(Request $request)
     {
         try {
+            $formId = $request->input('form_id', '');
+            if (! is_string($formId) && $formId !== null) {
+                throw ValidationException::withMessages(['form_id' => 'Неверный идентификатор формы.']);
+            }
+            $formId ??= '';
+            $modalKind = str_starts_with($formId, 'promo2-modal-') ? substr($formId, 13) : null;
+            $modal = $modalKind !== null ? (config('forms.promo2_modals')[$modalKind] ?? null) : null;
+            if ($modalKind !== null && (! $modal || $request->input('service_type') !== $modal['type'])) {
+                throw ValidationException::withMessages(['service_type' => 'Неверный тип формы.']);
+            }
+            $isPromo2Home = $modalKind === 'home-designer';
+            $isPromo2Showroom = $modalKind === 'showroom';
             $isPromo = $request->input('service_type') === 'promo';
             $isLeadCatcher = $request->input('form_id') === 'promo1-lead-catcher';
             $isGlass = $request->input('service_type') === 'glass-mirrors';
@@ -97,6 +109,7 @@ class NotificationController extends Controller
             $isKitchenEstimate = $request->input('service_type') === 'kitchen-estimate';
             $isOrderQuestion = $request->input('service_type') === 'order-question';
             $phoneRule = match (true) {
+                $modal !== null => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isLeadCatcher, $isPromo => 'required|string|regex:/^\+7[0-9]{10}$/',
                 $isGlass => 'required|string|max:16|regex:/^\+?[0-9]{7,15}$/',
                 $isSubscription, $isWarranty => 'nullable|string|max:50',
@@ -113,10 +126,13 @@ class NotificationController extends Controller
 
             $validated = $request->validate([
                 'service_type' => ['required', Rule::in(array_diff(array_keys(config('forms.types')), ['partner-application']))],
+                'request_subject' => $modal ? 'nullable|string|max:255' : 'prohibited',
+                'showroom' => $isPromo2Showroom ? 'nullable|string|max:255' : 'prohibited',
+                'designer_type' => $modalKind === 'partnership' ? 'required|in:studio,freelancer' : 'prohibited',
                 'name' => ($isSubscription || $isLeadCatcher || $isPromo) ? 'nullable|string|max:255' : 'required|string|max:255',
                 'phone' => $phoneRule,
-                'consent' => $isLeadCatcher ? 'required|accepted' : 'prohibited',
-                'email' => $emailRule,
+                'consent' => ($isLeadCatcher || $modal) ? 'required|accepted' : 'prohibited',
+                'email' => in_array($modalKind, ['careers', 'partnership'], true) ? 'required|email|max:255' : $emailRule,
                 'company' => $isSupplier ? 'required|string|max:255' : 'nullable|string|max:255',
                 'partnership_status' => 'required_if:form_id,promo1-partnership|nullable|in:referral,manufacturer,supplier,other',
                 'contract_number' => $isWarranty ? 'required|string|max:100' : 'nullable|string|max:100',
@@ -124,16 +140,16 @@ class NotificationController extends Controller
                 'source_url' => 'nullable|url:http,https|max:500',
                 'form_title' => 'nullable|string|max:500',
                 'form_id' => 'nullable|string|max:120|regex:/^[a-zA-Z0-9._-]+$/',
-                'submission_key' => 'nullable|uuid',
-                'city' => 'nullable|string|max:100',
+                'submission_key' => $modal ? 'required|uuid' : 'nullable|uuid',
+                'city' => $isPromo2Showroom ? 'required|string|max:100' : 'nullable|string|max:100',
                 'attribution' => 'nullable|string|max:2000',
                 'selection_token' => $isSelection ? 'required|string|regex:/^[a-f0-9]{48}$/' : 'prohibited',
                 'estimate_version' => $isKitchenEstimate ? 'required|uuid' : 'prohibited',
                 'estimate_inputs' => $isKitchenEstimate ? 'required|string|max:1000' : 'prohibited',
                 'order_id' => $isOrderQuestion ? 'required|string|max:80' : 'prohibited',
                 'order_title' => $isOrderQuestion ? 'nullable|string|max:160' : 'prohibited',
-                'object_address' => $isSiteConsultation ? 'required|string|min:10|max:500' : 'prohibited',
-                'visit_time' => $isSiteConsultation ? 'nullable|string|max:160' : 'prohibited',
+                'object_address' => ($isSiteConsultation || $isPromo2Home) ? 'required|string|min:10|max:500' : 'prohibited',
+                'visit_time' => ($isSiteConsultation || $isPromo2Home || $isPromo2Showroom) ? 'nullable|string|max:160' : 'prohibited',
                 'dimensions' => $isCountertopEstimate ? 'required|array|min:1|max:10' : 'prohibited',
                 'dimensions.*' => $isCountertopEstimate ? 'required|string|max:120' : 'prohibited',
                 'passport_main' => $isInstallment ? 'required|file|mimes:jpg,jpeg,png,pdf|max:5120' : 'prohibited',
@@ -146,6 +162,13 @@ class NotificationController extends Controller
 
             if (($isSiteConsultation || $isLeadCatcher) && $validated['service_type'] !== 'consultation') {
                 throw ValidationException::withMessages(['service_type' => 'Неверный тип заявки.']);
+            }
+
+            if (in_array($validated['service_type'], ['showroom-visit', 'furniture-estimate'], true) && ! $modal) {
+                throw ValidationException::withMessages(['form_id' => 'Укажите целевую форму.']);
+            }
+            if ($modal) {
+                $validated['form_title'] = $modal['title'];
             }
 
             return $this->accept($request, $validated);

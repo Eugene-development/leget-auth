@@ -85,7 +85,7 @@ final class FormSubmissionService
                         $id = $legacy->id;
                     }
                 }
-                $details = array_intersect_key($data, array_flip(['consent', 'form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions', 'object_address', 'visit_time', 'order_id', 'order_title']));
+                $details = array_intersect_key($data, array_flip(['consent', 'request_subject', 'showroom', 'designer_type', 'form_title', 'company', 'partnership_status', 'contract_number', 'position', 'partner_type', 'inn', 'website', 'partner_profile_id', 'dimensions', 'object_address', 'visit_time', 'order_id', 'order_title']));
                 $details += app(GrowthFormDetails::class)->resolve($data, $site);
                 if (isset($details['dimensions']) && is_array($details['dimensions'])) {
                     $details['dimensions'] = array_values($details['dimensions']);

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\FormMailDelivery;
 use App\Services\FormMailOutbox;
 use Illuminate\Mail\Message;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -76,6 +77,44 @@ class FormMailWorkerTest extends FormTestCase
         $this->assertDatabaseHas('service_request_mail_deliveries', ['service_request_id' => $id, 'kind' => 'admin', 'recipient_email' => 'info@novostroy.org', 'attempts' => 0]);
         $this->assertDatabaseCount('service_requests', 1);
         $this->assertDatabaseCount('service_request_mail_deliveries', 1);
+    }
+
+    public function test_submission_and_mail_retry_use_moscow_wall_time(): void
+    {
+        $this->assertSame('Europe/Moscow', config('app.timezone'));
+        $this->travelTo(Carbon::parse('2026-11-13 19:21:36', 'UTC'));
+        $id = $this->submit();
+        $this->assertDatabaseHas('service_requests', [
+            'id' => $id, 'created_at' => '2026-11-13 22:21:36',
+            'updated_at' => '2026-11-13 22:21:36', 'mail_retry_at' => '2026-11-13 22:21:36',
+        ]);
+        $this->assertDatabaseHas('service_request_mail_deliveries', [
+            'service_request_id' => $id, 'created_at' => '2026-11-13 22:21:36',
+            'retry_at' => '2026-11-13 22:21:36',
+        ]);
+        $this->assertDatabaseHas('conversions', ['service_request_id' => $id, 'created_at' => '2026-11-13 22:21:36']);
+
+        $attempts = 0;
+        Mail::shouldReceive('send')->twice()->andReturnUsing(function ($view, $data) use (&$attempts) {
+            $this->assertSame('13 ноября 2026, 22:21', $data['submitted_label']);
+            if (++$attempts === 1) {
+                throw new \RuntimeException('Synthetic SMTP failure');
+            }
+        });
+        $worker = app(FormMailDelivery::class);
+        $this->assertTrue($worker->processOne());
+        $this->assertDatabaseHas('service_request_mail_deliveries', [
+            'service_request_id' => $id, 'status' => 'pending', 'attempts' => 1,
+            'retry_at' => '2026-11-13 22:23:36',
+        ]);
+        $this->travel(119)->seconds();
+        $this->assertFalse($worker->processOne());
+        $this->travel(1)->seconds();
+        $this->assertTrue($worker->processOne());
+        $this->assertDatabaseHas('service_requests', [
+            'id' => $id, 'mail_status' => 'sent', 'mail_attempts' => 2,
+            'mail_sent_at' => '2026-11-13 22:23:36',
+        ]);
     }
 
     public function test_partner_and_offline_http_handlers_never_send_email(): void

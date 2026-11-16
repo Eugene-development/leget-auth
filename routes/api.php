@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountRoleController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientAuthController;
+use App\Http\Controllers\EngagementTrackingController;
 use App\Http\Controllers\Crm\CrmIntakeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartnerApplicationController;
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/sms/request', [SmsAuthController::class, 'request'])->middleware('throttle:30,1');
+// Only the purpose-signed leget-main gateway context is accepted here.
+Route::post('/track/engagement', [EngagementTrackingController::class, 'track']);
 Route::post('/sms/verify', [SmsAuthController::class, 'verify'])->middleware('throttle:60,1');
 
 // ─── Public auth routes ───────────────────────────────────────────────────────

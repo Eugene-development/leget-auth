@@ -8,6 +8,7 @@ use App\Http\Controllers\EngagementTrackingController;
 use App\Http\Controllers\Crm\CrmIntakeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartnerApplicationController;
+use App\Http\Controllers\PartnerCompanyCardController;
 use App\Http\Controllers\PasswordRecoveryController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SmsAuthController;
@@ -61,6 +62,12 @@ Route::prefix('client')->group(function () {
 Route::prefix('partner')->middleware('auth:api')->group(function () {
     Route::post('/apply', [PartnerApplicationController::class, 'apply'])->middleware([ResolveFormSiteContext::class, 'throttle:10,1']);
     Route::get('/application', [PartnerApplicationController::class, 'mine']);
+    Route::get('/company-card', [PartnerCompanyCardController::class, 'show'])->middleware('can:partner.cabinet');
+    Route::put('/company-card', [PartnerCompanyCardController::class, 'update'])->middleware(['can:partner.cabinet', 'throttle:20,1']);
+    Route::middleware(['can:partner.cabinet', 'throttle:10,1'])->group(function () {
+        Route::post('/company-card/logo', [PartnerCompanyCardController::class, 'uploadLogo']);
+        Route::delete('/company-card/logo', [PartnerCompanyCardController::class, 'removeLogo']);
+    });
 });
 
 // ─── «Кто я»: профиль вошедшего любой роли ────────────────────────────────────

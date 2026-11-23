@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -36,5 +37,22 @@ return Application::configure(basePath: dirname(__DIR__))
                 'success' => false,
                 'message' => 'Личный кабинет клиента недоступен для этой роли.',
             ], Response::HTTP_FORBIDDEN);
+        });
+
+        $exceptions->respond(function (HttpResponse $response, \Throwable $_error, Request $request) {
+            $json = $request->expectsJson()
+                || str_contains($response->headers->get('Content-Type', ''), 'json');
+            if ($response->getStatusCode() < 500 || ! $json) {
+                return $response;
+            }
+
+            $headers = array_diff_key($response->headers->all(), array_flip([
+                'content-type', 'content-length', 'content-encoding', 'etag',
+            ]));
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Сервис временно недоступен. Попробуйте чуть позже.',
+            ], $response->getStatusCode(), $headers);
         });
     })->create();

@@ -68,4 +68,10 @@ enum PartnerType: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    /** @return list<string> */
+    public static function directoryValues(): array
+    {
+        return [self::Manufacturer->value, self::Supplier->value];
+    }
 }

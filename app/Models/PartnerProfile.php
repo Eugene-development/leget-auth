@@ -55,6 +55,8 @@ class PartnerProfile extends Model
             'partner_type' => PartnerType::class,
             'status' => PartnerStatus::class,
             'reviewed_at' => 'datetime',
+            'directory_card' => 'array',
+            'directory_published_at' => 'datetime',
         ];
     }
 }

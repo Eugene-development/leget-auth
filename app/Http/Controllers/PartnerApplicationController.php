@@ -52,49 +52,64 @@ final class PartnerApplicationController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
+        $b2b = $request->input('form_id') === 'promo1-b2b-partner-registration';
+        if ($b2b) {
+            $site = $request->attributes->get('crm_site');
+            abort_unless((int) ($site->template_id ?? 0) === 1
+                && $site->is_active && $site->status !== 'suspended' && empty($site->deleted_at), 404);
+        }
+
         $validated = $request->validate([
             'submission_key' => 'required|uuid',
-            'partner_type' => ['required', 'string', Rule::in(PartnerType::values())],
-            'company' => 'nullable|string|max:255',
+            'partner_type' => ['required', 'string', Rule::in($b2b ? PartnerType::directoryValues() : PartnerType::values())],
+            'company' => [$b2b ? 'required' : 'nullable', 'string', 'max:255'],
             'inn' => 'nullable|string|max:12',
-            'website' => 'nullable|string|max:255',
+            'website' => ['nullable', $b2b ? 'url:http,https' : 'string', 'max:255'],
             'city' => 'nullable|string|max:100',
             'comment' => 'nullable|string|max:2000',
-        ]);
+        ] + ($b2b ? [
+            'consent' => 'required|accepted',
+            'source_url' => 'nullable|url:http,https|max:500',
+        ] : []));
 
         $submissionKey = $validated['submission_key'];
-        unset($validated['submission_key']);
+        $intake = $b2b ? [
+            'form_id' => 'promo1-b2b-partner-registration',
+            'form_title' => 'Регистрация партнёра B2B',
+            'consent' => true,
+            'source_url' => $validated['source_url'] ?? null,
+        ] : ['form_id' => 'platform-partner-application'];
+        unset($validated['submission_key'], $validated['consent'], $validated['source_url']);
 
-        [$profile, $submission] = DB::transaction(function () use ($user, $validated, $request, $submissionKey) {
+        [$profile, $submission] = DB::transaction(function () use ($user, $validated, $request, $submissionKey, $intake) {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($user->role, [Role::Client, Role::Student, Role::Partner], true), 403);
-            $profile = $user->partnerProfile;
+            $profile = $user->partnerProfile()->lockForUpdate()->first()
+                ?? $user->partnerProfile()->create($validated);
+            $key = (string) Uuid::uuid5(Uuid::NAMESPACE_URL, 'partner:'.$user->id.':'.$submissionKey);
+            $retry = DB::table('service_requests')->where('submission_key', $key)->exists();
 
-            if ($profile instanceof PartnerProfile) {
+            $submission = app(FormSubmissionService::class)->accept($intake + [
+                'service_type' => 'partner-application',
+                'submission_key' => $key,
+                'name' => $user->name, 'email' => $user->email, 'phone' => $user->phone,
+                'message' => $validated['comment'] ?? null,
+                'partner_profile_id' => $profile->id,
+            ] + array_diff_key($validated, ['comment' => true]), $request);
+
+            if (! $retry) {
                 $profile->fill($validated);
-
-                // Повторная подача после отказа снова уходит в разбор. Одобренную
-                // заявку правки реквизитов не роняют обратно в очередь: партнёр
-                // уже работает, и лишать его Офиса из-за нового адреса сайта нельзя.
+                if ($profile->isDirty('partner_type')) {
+                    $profile->directory_published_at = null;
+                }
                 if ($profile->status === PartnerStatus::Rejected) {
                     $profile->status = PartnerStatus::Pending;
                     $profile->reviewed_by = null;
                     $profile->reviewed_at = null;
                     $profile->review_note = null;
                 }
-
                 $profile->save();
-            } else {
-                $profile = $user->partnerProfile()->create($validated);
             }
-
-            $submission = app(FormSubmissionService::class)->accept([
-                'service_type' => 'partner-application', 'form_id' => 'platform-partner-application',
-                'submission_key' => (string) Uuid::uuid5(Uuid::NAMESPACE_URL, 'partner:'.$user->id.':'.$submissionKey),
-                'name' => $user->name, 'email' => $user->email, 'phone' => $user->phone,
-                'message' => $validated['comment'] ?? null,
-                'partner_profile_id' => $profile->id,
-            ] + array_diff_key($validated, ['comment' => true]), $request);
 
             return [$profile, $submission];
         });

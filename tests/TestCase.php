@@ -58,6 +58,9 @@ abstract class TestCase extends BaseTestCase
                 $table->unsignedBigInteger('reviewed_by')->nullable();
                 $table->timestamp('reviewed_at')->nullable();
                 $table->text('review_note')->nullable();
+                $table->string('directory_name')->nullable();
+                $table->json('directory_card')->nullable();
+                $table->timestamp('directory_published_at')->nullable();
                 $table->timestamps();
             });
         }

@@ -19,6 +19,7 @@ class UniversityTest extends TestCase
         parent::setUp();
         (require __DIR__.'/../../../leget-db/database/migrations/2026_09_23_140000_create_university_tables.php')->up();
         (require __DIR__.'/../../../leget-db/database/migrations/2026_09_27_160000_extend_university_content.php')->up();
+        (require __DIR__.'/../../../leget-db/database/migrations/2026_11_25_120000_allow_university_certificate_renewals.php')->up();
         $courses = json_decode(file_get_contents(__DIR__.'/../../../leget-db/database/data/university.json'), true);
         foreach ($courses as $i => $c) {
             DB::table('university_courses')->insert(['slug' => $c['slug'], 'discipline' => $c['discipline'], 'title' => $c['title'], 'description' => $c['description'], 'position' => $i, 'curriculum' => json_encode($c['curriculum']), 'created_at' => now(), 'updated_at' => now()]);
@@ -81,6 +82,70 @@ class UniversityTest extends TestCase
         $payload['answers']['q1'] = 9;
         $this->postJson('/api/university/courses/design-planning/assess', $payload)->assertStatus(422);
         $this->assertDatabaseCount('university_certificates', 0);
+    }
+
+    public function test_certificate_expires_at_the_anniversary_and_renewal_requires_new_lesson_passes(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 23)->setTime(12, 30));
+        $this->actingAs($student = $this->student(), 'api');
+        $assess = '/api/university/courses/design-planning/assess';
+        $firstLesson = $this->payload('lesson-1');
+        $firstExam = $this->payload('exam');
+        $this->postJson($assess, $firstLesson)->assertOk();
+        $this->postJson($assess, $this->payload('lesson-2'))->assertOk();
+        $firstId = $this->postJson($assess, $firstExam)->assertOk()->json('certificate_id');
+        $otherId = $this->issueCertificate($student, 'design-light', $student->name);
+
+        $this->travelTo(now()->addYear()->subSecond());
+        $this->getJson('/api/university/certificates/'.$firstId)->assertOk()
+            ->assertJsonPath('certificate.is_valid', true);
+        $this->postJson($assess, $this->payload('exam'))->assertOk()->assertJsonPath('certificate_id', $firstId);
+        $this->postJson($assess, $this->payload('lesson-2'))->assertOk();
+
+        $this->travel(1)->second();
+        $this->getJson('/api/university/certificates/'.$firstId)->assertOk()
+            ->assertJsonPath('certificate.expires_at', now()->toIso8601String())
+            ->assertJsonPath('certificate.is_valid', false);
+        $dashboard = $this->getJson('/api/university/dashboard')->assertOk()->assertJsonCount(5, 'attempts')->json();
+        $this->assertNotContains(true, array_column($dashboard['attempts'], 'counts_toward_progress'));
+        $this->postJson($assess, $firstExam)->assertOk()->assertJsonPath('certificate_id', $firstId);
+        $this->postJson($assess, $this->payload('exam'))->assertUnprocessable();
+        $this->postJson($assess, $firstLesson)->assertOk(); // Replaying a lesson cannot refresh its pass.
+        $this->postJson($assess, $this->payload('lesson-2'))->assertOk();
+        $this->postJson($assess, $this->payload('exam'))->assertUnprocessable();
+
+        $this->postJson($assess, $this->payload('lesson-1'))->assertOk();
+        $renewal = $this->payload('exam');
+        $newId = $this->postJson($assess, $renewal)->assertOk()->json('certificate_id');
+        $this->assertNotNull($newId);
+        $this->assertNotSame($firstId, $newId);
+        $this->postJson($assess, $renewal)->assertOk()->assertJsonPath('certificate_id', $newId);
+        $this->postJson($assess, $this->payload('exam'))->assertOk()->assertJsonPath('certificate_id', $newId);
+        $this->postJson($assess, $firstExam)->assertOk()->assertJsonPath('certificate_id', $firstId);
+        $this->assertDatabaseCount('university_certificates', 3);
+
+        $verification = $this->postJson('/api/university/verify-certificate', ['certificate_id' => $firstId])
+            ->assertOk()->assertJsonPath('matched_certificate_id', $firstId)->json('certificates');
+        $byId = array_column($verification, null, 'id');
+        $this->assertFalse($byId[$firstId]['is_valid']);
+        $this->assertFalse($byId[$otherId]['is_valid']);
+        $this->assertTrue($byId[$newId]['is_valid']);
+        $this->assertSame(now()->addYear()->toIso8601String(), $byId[$newId]['expires_at']);
+    }
+
+    public function test_certificate_issued_on_leap_day_expires_on_february_28_the_next_year(): void
+    {
+        $this->travelTo(now()->setDate(2028, 2, 29)->setTime(10, 0));
+        $id = $this->issueCertificate($this->student(), 'design-planning', 'Студент');
+        $verify = ['certificate_id' => $id];
+        $expiry = now()->setDate(2029, 2, 28);
+        $this->travelTo($expiry->copy()->subSecond());
+        $this->postJson('/api/university/verify-certificate', $verify)->assertOk()
+            ->assertJsonPath('certificates.0.expires_at', $expiry->toIso8601String())
+            ->assertJsonPath('certificates.0.is_valid', true);
+        $this->travelTo($expiry);
+        $this->postJson('/api/university/verify-certificate', $verify)->assertOk()
+            ->assertJsonPath('certificates.0.is_valid', false);
     }
 
     public function test_enrollment_does_not_overwrite_partner_or_staff_role(): void
@@ -166,7 +231,7 @@ class UniversityTest extends TestCase
         $this->assertNotContains($unrelated, array_column($data['certificates'], 'id'));
         $this->assertEqualsCanonicalizing(['designer_name', 'matched_certificate_id', 'certificates'], array_keys($data));
         foreach ($data['certificates'] as $certificate) {
-            $this->assertEqualsCanonicalizing(['id', 'course_title', 'discipline', 'issued_at'], array_keys($certificate));
+            $this->assertEqualsCanonicalizing(['id', 'course_title', 'discipline', 'issued_at', 'expires_at', 'is_valid'], array_keys($certificate));
         }
         $this->assertDatabaseCount('university_certificates', 3);
         $this->assertDatabaseCount('university_attempts', 0);

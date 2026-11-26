@@ -95,7 +95,7 @@ class NotificationController extends Controller
             $isPromo2Home = $modalKind === 'home-designer';
             $isPromo2Showroom = $modalKind === 'showroom';
             $isPromo = $request->input('service_type') === 'promo';
-            $isLeadCatcher = $request->input('form_id') === 'promo1-lead-catcher';
+            $isLeadCatcher = in_array($formId, ['promo1-lead-catcher', 'promo2-lead-catcher', 'promo3-lead-catcher'], true);
             $isGlass = $request->input('service_type') === 'glass-mirrors';
             $isPartnership = $request->input('service_type') === 'partnership';
             $isSupplier = $isPartnership && in_array($request->input('partnership_status'), ['manufacturer', 'supplier'], true);

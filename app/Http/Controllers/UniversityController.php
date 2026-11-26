@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
 use App\Models\User;
 use App\Services\LoginSession;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -32,9 +32,11 @@ final class UniversityController extends Controller
 
         // Match the account, never the display name: different students can share a name.
         // Read issued snapshots, so archived/revised courses still verify correctly.
+        $now = now();
         $certificates = DB::table('university_certificates')->where('user_id', $certificate->user_id)
             ->orderByDesc('issued_at')->orderBy('id')
-            ->get(['id', 'course_title', 'discipline', 'issued_at']);
+            ->get(['id', 'course_title', 'discipline', 'issued_at'])
+            ->map(fn ($record) => $this->presentCertificate($record, $now));
 
         return response()->json([
             'designer_name' => $certificate->student_name,
@@ -70,14 +72,26 @@ final class UniversityController extends Controller
     public function dashboard(Request $request)
     {
         $id = $request->user()->id;
+        $now = now();
+        $certificates = DB::table('university_certificates')->where('user_id', $id)->orderByDesc('issued_at')->get();
+        $renewalStarts = [];
+        foreach ($certificates as $certificate) {
+            $expiry = $this->certificateExpiry($certificate);
+            if ($expiry->lte($now)) {
+                $renewalStarts[$certificate->course_slug] ??= $expiry->toDateTimeString();
+            }
+        }
 
         return response()->json([
             'student' => ['name' => $request->user()->name, 'email' => $request->user()->email],
             'courses' => DB::table('university_courses')->where(fn ($q) => $q->where('status', 'published')->orWhere(fn ($q) => $q->where('status', 'archived')->whereIn('slug', DB::table('university_attempts')->where('user_id', $id)->select('course_slug'))))->orderBy('position')->get()->map(fn ($c) => $this->present($c, false)),
             'attempts' => DB::table('university_attempts')->where('user_id', $id)
                 ->orderByDesc('id')->get(['id', 'course_slug', 'assessment', 'score', 'passed', 'created_at'])
-                ->map(fn ($attempt) => (array) $attempt + ['grade' => $this->grade((int) $attempt->score)]),
-            'certificates' => DB::table('university_certificates')->where('user_id', $id)->orderByDesc('issued_at')->get(),
+                ->map(fn ($attempt) => (array) $attempt + [
+                    'grade' => $this->grade((int) $attempt->score),
+                    'counts_toward_progress' => $attempt->created_at >= ($renewalStarts[$attempt->course_slug] ?? ''),
+                ]),
+            'certificates' => $certificates->map(fn ($certificate) => $this->presentCertificate($certificate, $now)),
         ]);
     }
 
@@ -111,9 +125,20 @@ final class UniversityController extends Controller
 
                     return $this->result($old, $questions, $answers);
                 }
+                $now = now()->startOfSecond();
+                $certificate = null;
+                $renewalNumber = 0;
                 if ($isExam) {
-                    $passed = DB::table('university_attempts')->where('user_id', $user->id)->where('course_slug', $slug)
-                        ->where('passed', true)->pluck('assessment')->all();
+                    $certificate = DB::table('university_certificates')->where('user_id', $user->id)
+                        ->where('course_slug', $slug)->orderByDesc('renewal_number')->first();
+                    $lessonPasses = DB::table('university_attempts')->where('user_id', $user->id)
+                        ->where('course_slug', $slug)->where('passed', true);
+                    if ($certificate && ($expiry = $this->certificateExpiry($certificate))->lte($now)) {
+                        $lessonPasses->where('created_at', '>=', $expiry);
+                        $renewalNumber = $certificate->renewal_number + 1;
+                        $certificate = null;
+                    }
+                    $passed = $lessonPasses->pluck('assessment')->all();
                     foreach ($curriculum['lessons'] as $lesson) {
                         abort_unless(in_array($lesson['id'], $passed, true), 422, 'Сначала сдайте тесты всех статей курса.');
                     }
@@ -124,13 +149,13 @@ final class UniversityController extends Controller
                 $id = DB::table('university_attempts')->insertGetId([
                     'user_id' => $user->id, 'course_slug' => $slug, 'assessment' => $input['assessment'],
                     'request_key' => $input['request_key'], 'payload_hash' => $hash,
-                    'answers' => json_encode($answers), 'score' => $score, 'passed' => $passed, 'created_at' => now(),
+                    'answers' => json_encode($answers), 'score' => $score, 'passed' => $passed, 'created_at' => $now,
                 ]);
-                if ($isExam && $passed) {
-                    DB::table('university_certificates')->insertOrIgnore([
+                if ($isExam && $passed && ! $certificate) {
+                    DB::table('university_certificates')->insert([
                         'id' => (string) Str::uuid(), 'user_id' => $user->id, 'course_slug' => $slug,
                         'student_name' => $user->name, 'course_title' => $course->title, 'discipline' => $course->discipline,
-                        'score' => $score, 'issued_at' => now(),
+                        'score' => $score, 'issued_at' => $now, 'renewal_number' => $renewalNumber,
                     ]);
                 }
 
@@ -146,7 +171,7 @@ final class UniversityController extends Controller
         $certificate = DB::table('university_certificates')->where('id', $id)->where('user_id', $request->user()->id)->first();
         abort_unless($certificate, 404);
 
-        return response()->json(['certificate' => $certificate]);
+        return response()->json(['certificate' => $this->presentCertificate($certificate, now())]);
     }
 
     public function interviews(?string $slug = null)
@@ -204,11 +229,34 @@ final class UniversityController extends Controller
 
     private function result(object $attempt, array $questions, array $answers): array
     {
-        $certificate = DB::table('university_certificates')->where('user_id', $attempt->user_id)->where('course_slug', $attempt->course_slug)->first();
+        $certificateId = null;
+        if ($attempt->assessment === 'exam' && $attempt->passed) {
+            // A retry of the original request must still reference the certificate from that exam.
+            $certificates = DB::table('university_certificates')->where('user_id', $attempt->user_id)
+                ->where('course_slug', $attempt->course_slug);
+            $certificateId = (clone $certificates)->where('issued_at', '<=', $attempt->created_at)
+                ->orderByDesc('renewal_number')->value('id')
+                // Legacy issuance used a separate timestamp and could cross a second boundary.
+                ?? $certificates->where('renewal_number', 0)->value('id');
+        }
 
         return ['id' => $attempt->id, 'score' => $attempt->score, 'passed' => (bool) $attempt->passed,
             'grade' => $this->grade((int) $attempt->score),
-            'certificate_id' => $certificate?->id,
+            'certificate_id' => $certificateId,
             'feedback' => array_map(fn ($q) => ['id' => $q['id'], 'correct' => $answers[$q['id']] === $q['correct'], 'explanation' => $q['explanation']], $questions)];
+    }
+
+    private function certificateExpiry(object $certificate): Carbon
+    {
+        return Carbon::parse($certificate->issued_at)->addYearNoOverflow();
+    }
+
+    private function presentCertificate(object $certificate, Carbon $now): array
+    {
+        $expiry = $this->certificateExpiry($certificate);
+        $data = (array) $certificate;
+        unset($data['renewal_number']);
+
+        return $data + ['expires_at' => $expiry->toIso8601String(), 'is_valid' => $expiry->gt($now)];
     }
 }

@@ -49,6 +49,22 @@ class LeadCatcherTest extends FormTestCase
         $this->assertDatabaseCount('service_requests', 0);
     }
 
+    public function test_promo_2_and_3_use_the_same_consultation_rules(): void
+    {
+        Mail::shouldReceive('send')->never();
+        foreach (['promo2-lead-catcher', 'promo3-lead-catcher'] as $formId) {
+            $payload = array_replace($this->payload(), ['form_id' => $formId]);
+            $this->postJson('/api/notify/service-request', array_replace($payload, ['consent' => '0']))->assertUnprocessable();
+            $this->postJson('/api/notify/service-request', array_replace($payload, ['service_type' => 'assembly']))->assertUnprocessable();
+            $id = $this->postJson('/api/notify/service-request', $payload)->assertAccepted()->json('id');
+            $this->postJson('/api/notify/service-request', $payload)->assertAccepted()->assertJsonPath('id', $id);
+            $this->assertDatabaseHas('service_requests', [
+                'id' => $id, 'phone' => '+79990000000', 'name' => '', 'mail_status' => 'pending',
+            ]);
+        }
+        $this->assertDatabaseCount('service_requests', 2);
+    }
+
     public function test_smtp_failure_is_accepted_and_retried_without_duplicate(): void
     {
         Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP unavailable'));
